@@ -1,4 +1,5 @@
 import asyncio
+import json
 
 import pytest
 from fastapi.testclient import TestClient
@@ -111,9 +112,20 @@ def test_streaming_returns_openai_compatible_sse_and_records_usage() -> None:
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/event-stream")
     assert "chat.completion.chunk" in response.text
-    assert "mock response:" in response.text
     assert "data: [DONE]" in response.text
     assert '"stream":true' in response.text
+
+    chunks = []
+    for line in response.text.splitlines():
+        if not line.startswith("data: ") or line == "data: [DONE]":
+            continue
+        chunks.append(json.loads(line.removeprefix("data: ")))
+    streamed_text = "".join(
+        chunk["choices"][0].get("delta", {}).get("content", "")
+        for chunk in chunks
+        if chunk.get("choices")
+    )
+    assert streamed_text == "mock response: hello stream"
 
     usage = client.get("/v1/usage", headers=AUTH).json()
     assert usage["totals"]["requests"] == 1
