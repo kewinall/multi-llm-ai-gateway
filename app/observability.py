@@ -47,6 +47,10 @@ BUDGET_REJECTED = Counter(
     "llm_gateway_budget_rejected_total",
     "Requests rejected by configured budgets.",
 )
+POLICY_REJECTED = Counter(
+    "llm_gateway_policy_rejected_total",
+    "Requests rejected by gateway policy.",
+)
 
 
 def metrics_response() -> Response:
@@ -106,3 +110,5 @@ def record_rejection(kind: str) -> None:
         RATE_LIMITED.inc()
     elif kind == "budget":
         BUDGET_REJECTED.inc()
+    elif kind == "policy":
+        POLICY_REJECTED.inc()
