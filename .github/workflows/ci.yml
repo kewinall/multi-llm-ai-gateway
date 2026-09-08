@@ -54,3 +54,8 @@ jobs:
 
       - name: Build container
         run: docker build -t multi-llm-ai-gateway:ci .
+
+      - name: Validate Compose stack
+        run: |
+          cp .env.example .env
+          docker compose config --quiet
