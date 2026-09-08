@@ -1,9 +1,10 @@
+import json
 import uuid
 from contextlib import asynccontextmanager
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 
 from app.admin import router as admin_router
 from app.admin_ui import admin_console
@@ -11,6 +12,7 @@ from app.budget import BudgetManager
 from app.config import get_settings
 from app.errors import GatewayError
 from app.governance import GovernanceStore
+from app.identity import OIDCAuthenticator
 from app.models import ChatCompletionRequest
 from app.observability import (
     configure_tracing,
@@ -20,6 +22,7 @@ from app.observability import (
     timer_start,
     tracer,
 )
+from app.policy import PolicyEngine
 from app.rate_limit import RateLimiter
 from app.resilience import CircuitBreaker
 from app.router import ModelRouter
@@ -30,6 +33,8 @@ from app.usage import UsageStore
 settings = get_settings()
 state_backend = build_state_backend(settings)
 governance = GovernanceStore(settings, state_backend)
+identity = OIDCAuthenticator(settings)
+policy_engine = PolicyEngine()
 usage_store = UsageStore(state_backend)
 budget_manager = BudgetManager(settings, usage_store)
 rate_limiter = RateLimiter(state_backend, settings.rate_limit_requests_per_minute)
@@ -55,15 +60,17 @@ async def lifespan(_app: FastAPI):
 
 app = FastAPI(
     title="Multi-LLM AI Gateway",
-    version="0.4.0",
+    version="0.5.0",
     description=(
-        "OpenAI-compatible enterprise AI gateway with dynamic governance, "
-        "RBAC, distributed state, and observability."
+        "OpenAI-compatible enterprise AI gateway with streaming, OIDC identity, "
+        "policy enforcement, dynamic governance, and distributed observability."
     ),
     lifespan=lifespan,
 )
 app.state.settings = settings
 app.state.governance = governance
+app.state.identity = identity
+app.state.policy_engine = policy_engine
 app.state.usage_store = usage_store
 app.state.budget_manager = budget_manager
 configure_tracing(app, settings)
@@ -151,23 +158,32 @@ def _calculate_cost(
     return cost, True
 
 
-@app.post("/v1/chat/completions")
-async def chat_completions(
+async def _enforce_request_controls(
     payload: ChatCompletionRequest,
-    request: Request,
-    response: Response,
-    principal: Annotated[Principal, Depends(require_operator)],
-):
-    started_at = timer_start()
-    if payload.stream:
-        raise HTTPException(status_code=400, detail="Streaming is not supported in v0.4")
+    principal: Principal,
+) -> tuple[object, dict[str, object]]:
+    snapshot = await governance.snapshot()
+    decision = policy_engine.evaluate(
+        snapshot["policies"],
+        principal_id=principal.id,
+        role=principal.role,
+        request=payload,
+    )
+    if not decision.allowed:
+        record_rejection("policy")
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "message": "Request denied by gateway policy",
+                "policy": decision.policy,
+                "reason": decision.reason,
+            },
+        )
 
     rate = await rate_limiter.check(
         principal.id,
         principal.rate_limit_requests_per_minute,
     )
-    response.headers["X-RateLimit-Limit"] = str(rate.limit)
-    response.headers["X-RateLimit-Remaining"] = str(rate.remaining)
     if not rate.allowed:
         record_rejection("rate_limit")
         raise HTTPException(
@@ -184,6 +200,110 @@ async def chat_completions(
             detail={
                 "message": "Configured gateway budget is exhausted",
                 **budget_status,
+            },
+        )
+    return rate, {
+        "policy": decision.policy,
+        "policy_reason": decision.reason,
+    }
+
+
+async def _stream_response(
+    payload: ChatCompletionRequest,
+    request: Request,
+    principal: Principal,
+    route_metadata: dict[str, object],
+    source,
+    started_at: float,
+):
+    prompt_tokens = 0
+    completion_tokens = 0
+    cost_usd = 0.0
+    pricing_known = False
+
+    async for chunk in source:
+        raw_usage = chunk.get("usage", {})
+        if raw_usage:
+            prompt_tokens = int(raw_usage.get("prompt_tokens", 0))
+            completion_tokens = int(raw_usage.get("completion_tokens", 0))
+            snapshot = await governance.snapshot()
+            canonical_model = (
+                f"{route_metadata['provider']}:{route_metadata['model']}"
+            )
+            cost_usd, pricing_known = _calculate_cost(
+                snapshot["pricing"],
+                canonical_model,
+                prompt_tokens,
+                completion_tokens,
+            )
+            route_metadata["cost_usd"] = round(cost_usd, 8)
+            route_metadata["pricing_known"] = pricing_known
+            route_metadata["budget"] = await budget_manager.status()
+            chunk["gateway"] = route_metadata
+
+        yield f"data: {json.dumps(chunk, separators=(',', ':'))}\n\n"
+
+    await usage_store.record(
+        request_id=request.state.request_id,
+        provider=str(route_metadata["provider"]),
+        model=str(route_metadata["model"]),
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+        cost_usd=cost_usd,
+        pricing_known=pricing_known,
+    )
+    record_success(
+        metadata=route_metadata,
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+        cost_usd=cost_usd,
+        started_at=started_at,
+    )
+    yield "data: [DONE]\n\n"
+
+
+@app.post("/v1/chat/completions")
+async def chat_completions(
+    payload: ChatCompletionRequest,
+    request: Request,
+    response: Response,
+    principal: Annotated[Principal, Depends(require_operator)],
+):
+    started_at = timer_start()
+    rate, policy_metadata = await _enforce_request_controls(payload, principal)
+    headers = {
+        "X-RateLimit-Limit": str(rate.limit),
+        "X-RateLimit-Remaining": str(rate.remaining),
+    }
+    response.headers.update(headers)
+
+    if payload.stream:
+        try:
+            source, route_metadata = await router.stream_route(payload)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+        route_metadata.update(policy_metadata)
+        route_metadata["client"] = {
+            "id": principal.id,
+            "name": principal.name,
+            "role": principal.role,
+            "source": principal.source,
+        }
+        return StreamingResponse(
+            _stream_response(
+                payload,
+                request,
+                principal,
+                route_metadata,
+                source,
+                started_at,
+            ),
+            media_type="text/event-stream",
+            headers={
+                **headers,
+                "Cache-Control": "no-cache",
+                "X-Accel-Buffering": "no",
             },
         )
 
@@ -218,6 +338,7 @@ async def chat_completions(
             pricing_known=pricing_known,
         )
 
+        route_metadata.update(policy_metadata)
         route_metadata["cost_usd"] = round(cost_usd, 8)
         route_metadata["pricing_known"] = pricing_known
         route_metadata["budget"] = await budget_manager.status()
@@ -225,6 +346,7 @@ async def chat_completions(
             "id": principal.id,
             "name": principal.name,
             "role": principal.role,
+            "source": principal.source,
         }
         result["gateway"] = route_metadata
 
