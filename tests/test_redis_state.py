@@ -79,8 +79,28 @@ async def test_redis_backend_shares_state_across_clients() -> None:
         assert authenticated["name"] == "redis-client"
         assert authenticated["rate_limit_requests_per_minute"] == 9
 
+        await first_governance.set_policy(
+            "redis-policy",
+            {
+                "priority": 5,
+                "effect": "deny",
+                "models": ["mock:blocked*"],
+            },
+            "test",
+        )
+        shared = await second_governance.snapshot()
+        assert shared["policies"]["redis-policy"]["effect"] == "deny"
+
+        rotated = await second_governance.rotate_client_key(created["id"], "test")
+        assert await first_governance.authenticate_client(created["api_key"]) is None
+        rotated_record = await first_governance.authenticate_client(rotated["api_key"])
+        assert rotated_record is not None
+        assert rotated_record["id"] == created["id"]
+
         audit = await second_governance.audit_events()
         assert any(event["resource"] == "alias:managed" for event in audit)
+        assert any(event["resource"] == "policy:redis-policy" for event in audit)
+        assert any(event["action"] == "rotate_key" for event in audit)
     finally:
         await first.reset()
         await first.close()
