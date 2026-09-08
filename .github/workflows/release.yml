@@ -59,6 +59,9 @@ jobs:
         run: |
           helm lint deploy/helm/multi-llm-ai-gateway
           helm template release deploy/helm/multi-llm-ai-gateway >/tmp/rendered.yaml
+          helm template release-hardening deploy/helm/multi-llm-ai-gateway \
+            --set networkPolicy.enabled=true \
+            --set serviceMonitor.enabled=true >/tmp/rendered-hardening.yaml
 
   security:
     runs-on: ubuntu-latest
