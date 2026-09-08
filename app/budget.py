@@ -18,14 +18,14 @@ class BudgetManager:
             "exhausted": False if limit is None else spent >= limit,
         }
 
-    def status(self) -> dict[str, Any]:
-        daily_spent = self.usage_store.period_cost("day")
-        monthly_spent = self.usage_store.period_cost("month")
+    async def status(self) -> dict[str, Any]:
+        daily_spent = await self.usage_store.period_cost("day")
+        monthly_spent = await self.usage_store.period_cost("month")
         return {
             "daily": self._period_status(daily_spent, self.settings.daily_budget_usd),
             "monthly": self._period_status(monthly_spent, self.settings.monthly_budget_usd),
         }
 
-    def allowed(self) -> bool:
-        current = self.status()
+    async def allowed(self) -> bool:
+        current = await self.status()
         return not current["daily"]["exhausted"] and not current["monthly"]["exhausted"]
