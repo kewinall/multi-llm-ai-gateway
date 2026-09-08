@@ -2,125 +2,150 @@
 
 ## 目標 / Goal
 
-v0.3 將 Gateway 從單 process governance reference implementation 提升為可支援多 replica
-的分散式架構，並加入 metrics、trace 與 readiness。
+v0.4 在 v0.3 分散式 Gateway 基礎上加入 **management plane**：Runtime Governance、
+Managed API Clients、RBAC、Audit 與 Kubernetes/Helm deployment。
 
-## Request flow
-
-```text
-Client
-  |
-  v
-FastAPI + request/trace context
-  |
-  v
-API key authentication
-  |
-  v
-Distributed Rate Limit ------> HTTP 429
-  |
-  v
-Distributed Budget ----------> HTTP 429
-  |
-  v
-Model Pool / Routing Policy
-  |  priority / round_robin / random / cost
-  v
-Distributed Circuit Breaker
-  |
-  v
-Provider Retry / Fallback
-  |
-  +---- OpenAI
-  +---- Anthropic
-  +---- Google Gemini
-  +---- Mock
-  |
-  v
-Usage + Pricing
-  |
-  +---- Redis: usage / cost / budget state
-  |
-  +---- Prometheus: metrics
-  |
-  +---- OpenTelemetry: spans
-  |
-  v
-OpenAI-compatible response
-```
-
-## State backend abstraction
+## Logical architecture
 
 ```text
-                       StateBackend
-                      /            \
-          InMemoryStateBackend    RedisStateBackend
-                 |                       |
-             local demo             multi replica
-             unit tests             distributed
+                    Management Plane
+                +------------------------+
+                | Admin Console / API    |
+                | alias / pool / price   |
+                | policy / clients / RBAC|
+                | audit                  |
+                +-----------+------------+
+                            |
+                     Governance Store
+                            |
+                  +---------+---------+
+                  |                   |
+               Memory               Redis
+                                    |
+                              shared replicas
+
+                    Data Plane
+Client -> Authentication / RBAC
+       -> Rate Limit
+       -> Budget
+       -> Effective Governance Snapshot
+       -> Model / Policy Router
+       -> Circuit Breaker / Retry / Fallback
+       -> Provider Adapter
+       -> Usage / Cost / Metrics / Trace
+       -> OpenAI-compatible Response
 ```
 
-The same RateLimiter, BudgetManager, UsageStore, CircuitBreaker, and ModelRouter consume this
-interface. Application logic does not need separate Redis-specific code paths.
+## Authentication and RBAC
 
-## Redis state
+A request resolves to a `Principal`.
 
-Redis provides shared state for:
+| Credential | Effective role |
+|---|---|
+| `ADMIN_API_KEY` | bootstrap admin |
+| `GATEWAY_API_KEY` | bootstrap operator |
+| Managed client key | configured viewer/operator/admin |
 
-- sliding-window rate limiting
-- round-robin cursor
-- circuit breaker
-- total/model usage
-- daily/monthly cost
-- budget evaluation
-- recent usage
+Managed API keys are generated once, returned once, then represented only by SHA-256 digest in the
+governance store.
 
-Rate-limit identities are hashed before becoming Redis keys.
+### Role behavior
+
+- `viewer`: read model/provider/usage/budget APIs
+- `operator`: viewer capabilities + Chat Completion
+- `admin`: operator capabilities + management APIs
+
+## Dynamic governance
+
+The effective configuration is:
+
+```text
+Environment defaults
+       +
+Runtime governance overrides
+       =
+Effective snapshot
+```
+
+Runtime overrides include:
+
+- alias -> provider:model
+- model pool -> candidate list
+- model pricing
+- default routing policy
+
+The router reads this snapshot per request. There is no process restart for a governance update.
+
+With Redis backend, every replica sees the same governance state.
+
+## Distributed state
+
+Redis now holds both operational state and management-plane state:
+
+```text
+rate limits
+round-robin cursor
+circuit breaker
+usage / cost
+budget counters
+recent usage
+dynamic aliases
+dynamic pools
+dynamic pricing
+dynamic routing settings
+managed API clients
+audit events
+```
 
 ## Observability
 
-### Prometheus
+- Prometheus: `/metrics`
+- OpenTelemetry: inbound FastAPI, outbound HTTPX, route/provider spans
+- Grafana: provisioned AI Gateway dashboard
+- route spans include client id/role in v0.4
 
-`/metrics` exports request, latency, token, cost, provider-attempt and rejection metrics.
+## Kubernetes architecture
 
-### OpenTelemetry
+The Helm chart defaults to two Gateway replicas sharing an external Redis backend.
 
-When an OTLP endpoint is configured:
+```text
+Ingress / Service
+       |
+   +---+---+
+   |       |
+Gateway  Gateway
+   |       |
+   +---+---+
+       |
+     Redis
+```
 
-- FastAPI inbound requests are instrumented
-- HTTPX outbound LLM calls are instrumented
-- `llm.gateway.route` captures route decisions
-- `llm.provider.request` captures provider/model/retry attributes
+Deployment controls include:
 
-### Grafana
-
-The reference Compose deployment provisions a Prometheus datasource and AI Gateway dashboard.
-
-## Health model
-
-| Endpoint | Meaning |
-|---|---|
-| `/health` | Application process is alive |
-| `/ready` | Selected state backend is available |
-| `/metrics` | Prometheus scrape endpoint |
-
-This separation lets orchestrators remove a replica from traffic when Redis is unavailable without
-treating the process itself as dead.
+- liveness `/health`
+- readiness `/ready`
+- PodDisruptionBudget
+- resource requests/limits
+- non-root execution
+- RuntimeDefault seccomp
+- all Linux capabilities dropped
+- read-only root filesystem
+- optional HPA
+- optional Ingress
+- external Kubernetes Secret contract
 
 ## CI and release gate
 
 ```text
-main / version change
-      |
-      +--> CI: Ruff + Pytest + Redis integration + Docker build
-      |
-      +--> Release quality gate
-      |
-      +--> Release security gate: local-secret check + pip-audit
-                    |
-                    v
-              Git tag + Release
+Ruff
+Pytest
+Redis integration
+Docker build
+Compose config
+Helm lint
+Helm template
+   |
+   +-- Security: secret scan rule + pip-audit
+   |
+   +-- Automatic semantic tag and GitHub Release
 ```
-
-The Redis integration test uses two separate Redis clients with one shared prefix to verify
-distributed state visibility explicitly.
