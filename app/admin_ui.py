@@ -74,6 +74,20 @@ code{color:#93c5fd}.pill{display:inline-block;border:1px solid #334155;border-ra
   </section>
 
   <section class="card">
+    <h3>Request Policies</h3>
+    <div class="row">
+      <input id="policyName" placeholder="no-stream">
+      <select id="policyEffect"><option>allow</option><option>deny</option></select>
+      <input id="policyRoles" placeholder="roles: operator,admin">
+      <input id="policyModels" placeholder="models: mock:*">
+      <select id="policyStream"><option value="">stream: any</option><option value="true">stream: allow</option><option value="false">stream: deny</option></select>
+      <input id="policyMaxTokens" type="number" min="1" placeholder="max tokens">
+      <button onclick="setRequestPolicy()">Upsert</button>
+    </div>
+    <div id="requestPolicies"></div>
+  </section>
+
+  <section class="card">
     <h3>API Clients / RBAC</h3>
     <div class="row"><input id="clientName" placeholder="rag-app"><select id="clientRole"><option>viewer</option><option selected>operator</option><option>admin</option></select><input id="clientLimit" type="number" min="1" placeholder="RPM override"><button onclick="createClient()">Create</button></div>
     <div id="newKey"></div>
@@ -113,7 +127,9 @@ async function refresh(){
     $("pools").innerHTML=table(pools,[["Name",r=>r.name],["Models",r=>r.models]],r=>'<button class="danger" onclick="delPool(\''+r.name+'\')">Delete override</button>');
     const prices=Object.entries(s.governance.pricing).map(([model,p])=>({model,input:p.input_per_million,output:p.output_per_million}));
     $("pricing").innerHTML=table(prices,[["Model",r=>r.model],["Input",r=>r.input],["Output",r=>r.output]],r=>'<button class="danger" onclick="delPrice(\''+r.model+'\')">Delete override</button>');
-    $("clients").innerHTML=table(s.clients,[["Name",r=>r.name],["Role",r=>r.role],["Enabled",r=>r.enabled],["RPM",r=>r.rate_limit_requests_per_minute??'default']],r=>'<button class="danger" onclick="delClient(\''+r.id+'\')">Delete</button>');
+    const governedPolicies=Object.entries(s.governance.policies||{}).map(([name,rule])=>({name,effect:rule.effect||'allow',roles:(rule.roles||[]).join(','),models:(rule.models||[]).join(','),stream:rule.allow_stream,maxTokens:rule.max_tokens??''}));
+    $("requestPolicies").innerHTML=table(governedPolicies,[["Name",r=>r.name],["Effect",r=>r.effect],["Roles",r=>r.roles],["Models",r=>r.models],["Stream",r=>r.stream??'any'],["Max Tokens",r=>r.maxTokens]],r=>'<button class="danger" onclick="delRequestPolicy(\''+r.name+'\')">Delete</button>');
+    $("clients").innerHTML=table(s.clients,[["Name",r=>r.name],["Role",r=>r.role],["Enabled",r=>r.enabled],["RPM",r=>r.rate_limit_requests_per_minute??'default']],r=>'<button class="secondary" onclick="rotateClient(\''+r.id+'\')">Rotate</button> <button class="danger" onclick="delClient(\''+r.id+'\')">Delete</button>');
     $("audit").innerHTML=table(s.audit,[["Time",r=>r.timestamp],["Actor",r=>r.actor],["Action",r=>r.action],["Resource",r=>r.resource]]);
   }catch(e){$("status").textContent="error";$("status").className="pill warn";$("error").textContent=e.message}
 }
@@ -125,10 +141,28 @@ async function setPool(){await api('/admin/api/pools/'+encodeURIComponent($("poo
 async function delPool(n){await api('/admin/api/pools/'+encodeURIComponent(n),{method:'DELETE'});refresh()}
 async function setPrice(){await api('/admin/api/pricing/'+encodeURIComponent($("priceModel").value),{method:'PUT',body:JSON.stringify({input_per_million:Number($("priceIn").value),output_per_million:Number($("priceOut").value)})});refresh()}
 async function delPrice(n){await api('/admin/api/pricing/'+encodeURIComponent(n),{method:'DELETE'});refresh()}
+async function setRequestPolicy(){
+  const roles=$("policyRoles").value.split(',').map(x=>x.trim()).filter(Boolean);
+  const models=$("policyModels").value.split(',').map(x=>x.trim()).filter(Boolean);
+  const streamRaw=$("policyStream").value;
+  const body={
+    effect:$("policyEffect").value,
+    roles:roles.length?roles:null,
+    models:models.length?models:null,
+    allow_stream:streamRaw===''?null:streamRaw==='true',
+    max_tokens:$("policyMaxTokens").value?Number($("policyMaxTokens").value):null
+  };
+  await api('/admin/api/policies/'+encodeURIComponent($("policyName").value),{method:'PUT',body:JSON.stringify(body)});refresh()
+}
+async function delRequestPolicy(n){await api('/admin/api/policies/'+encodeURIComponent(n),{method:'DELETE'});refresh()}
 async function createClient(){
   const rpm=$("clientLimit").value;
   const out=await api('/admin/api/clients',{method:'POST',body:JSON.stringify({name:$("clientName").value,role:$("clientRole").value,rate_limit_requests_per_minute:rpm?Number(rpm):null})});
   $("newKey").innerHTML='<p class="warn">Copy this key now. It is shown only once.</p><div class="keybox">'+escapeHtml(out.api_key)+'</div>';refresh()
+}
+async function rotateClient(id){
+  const out=await api('/admin/api/clients/'+id+'/rotate-key',{method:'POST'});
+  $("newKey").innerHTML='<p class="warn">Rotated key. Copy it now; the previous key is invalid.</p><div class="keybox">'+escapeHtml(out.api_key)+'</div>';refresh()
 }
 async function delClient(id){await api('/admin/api/clients/'+id,{method:'DELETE'});refresh()}
 $("adminKey").value=sessionStorage.getItem('adminKey')||'';
