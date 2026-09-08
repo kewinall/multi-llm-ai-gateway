@@ -31,6 +31,17 @@ class ClientCreate(BaseModel):
     rate_limit_requests_per_minute: int | None = Field(default=None, ge=1)
 
 
+class PolicyUpdate(BaseModel):
+    enabled: bool = True
+    priority: int = Field(default=100, ge=0)
+    effect: Literal["allow", "deny"] = "allow"
+    roles: list[Literal["viewer", "operator", "admin"]] | None = None
+    clients: list[str] | None = None
+    models: list[str] | None = None
+    allow_stream: bool | None = None
+    max_tokens: int | None = Field(default=None, gt=0)
+
+
 class ClientUpdate(BaseModel):
     role: Literal["viewer", "operator", "admin"] | None = None
     enabled: bool | None = None
@@ -141,6 +152,27 @@ async def set_routing_policy(
     return body.model_dump()
 
 
+@router.put("/api/policies/{name}")
+async def set_policy(
+    name: str,
+    body: PolicyUpdate,
+    request: Request,
+    principal: Annotated[Principal, Depends(require_admin)],
+) -> dict[str, object]:
+    rule = body.model_dump(exclude_none=True)
+    await _store(request).set_policy(name, rule, principal.id)
+    return {"name": name, **rule}
+
+
+@router.delete("/api/policies/{name}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_policy(
+    name: str,
+    request: Request,
+    principal: Annotated[Principal, Depends(require_admin)],
+) -> None:
+    await _store(request).delete_policy(name, principal.id)
+
+
 @router.get("/api/clients")
 async def clients(
     request: Request,
@@ -182,6 +214,18 @@ async def update_client(
                 or body.clear_rate_limit_override
             ),
         )
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Client not found") from exc
+
+
+@router.post("/api/clients/{client_id}/rotate-key")
+async def rotate_client_key(
+    client_id: str,
+    request: Request,
+    principal: Annotated[Principal, Depends(require_admin)],
+) -> dict[str, object]:
+    try:
+        return await _store(request).rotate_client_key(client_id, principal.id)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="Client not found") from exc
 
