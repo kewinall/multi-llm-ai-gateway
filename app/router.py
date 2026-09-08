@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from app.config import Settings
-from app.errors import ProviderRequestError
+from app.errors import GatewayError, ProviderRequestError
 from app.models import ChatCompletionRequest
 from app.providers import AnthropicProvider, GoogleProvider, MockProvider, OpenAIProvider
 from app.providers.base import BaseProvider
@@ -75,7 +75,7 @@ class ModelRouter:
                     "fallback_used": len(attempts) > 0,
                 }
                 return result, route_metadata
-            except Exception as exc:
+            except GatewayError as exc:
                 attempts.append(
                     {
                         "target": target.canonical,
