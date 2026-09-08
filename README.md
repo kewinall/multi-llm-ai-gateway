@@ -2,54 +2,68 @@
 
 > 企業級多模型 AI Gateway 範例 / Enterprise multi-provider AI gateway reference implementation.
 
-An **OpenAI-compatible AI Gateway** that decouples applications from LLM vendors and centralizes
-routing, fallback, retries, cost governance, distributed state, metrics, and tracing.
+An **OpenAI-compatible Enterprise AI Gateway** that decouples applications from LLM vendors and
+centralizes routing, resilience, cost governance, distributed state, observability, RBAC, and
+runtime model governance.
 
-## v0.3 Features
+## v0.4 Features
 
 - **Unified API**: `POST /v1/chat/completions`
 - **Providers**: OpenAI, Anthropic, Google Gemini, Mock
 - **Routing**: priority, round-robin, random, cost-aware
 - **Fallback, retry, circuit breaker**
 - **Token / cost accounting and daily/monthly budgets**
-- **Per-API-key sliding-window rate limiting**
-- **Redis distributed state** for multi-replica deployments
-- **Memory backend fallback** for local development and CI
-- **Prometheus metrics** at `GET /metrics`
-- **OpenTelemetry tracing** for FastAPI, HTTPX, gateway routing, and provider calls
-- **Readiness probe** at `GET /ready`
-- **Grafana dashboard provisioning**
-- **Gated automatic GitHub Releases** after quality + security checks
-- **CI Redis integration test** proving state sharing across independent clients
+- **Per-client rate limiting**
+- **Redis distributed state and governance**
+- **Dynamic aliases, model pools, pricing, and routing policy without restart**
+- **Managed API clients with hashed keys**
+- **RBAC**: viewer / operator / admin
+- **Audit log** for governance changes
+- **Embedded Admin Console** at `/admin`
+- **Prometheus + OpenTelemetry + Grafana**
+- **Helm chart** with multi-replica production defaults
+- **CI validation**: Ruff, Pytest, Redis integration, Docker, Compose, Helm
+- **Gated automatic GitHub Releases**
 
 ## Architecture
 
 ```text
-                       +----------------------+
-Client / Agent / RAG ->| Multi-LLM AI Gateway|
-                       +----------+-----------+
-                                  |
-                   Auth -> Rate Limit -> Budget
-                                  |
-                    Model Pool / Policy Router
-                     /        |         \
-                  OpenAI   Anthropic   Gemini
-                                  |
-                         Usage / Cost
-                                  |
-                  +---------------+---------------+
-                  |                               |
-             Redis State                     Prometheus
-       rate/budget/circuit/RR                  /metrics
-                  |                               |
-           Multi replicas                       Grafana
-                                                  |
-                                           AI Gateway Dashboard
+                  +---------------------------+
+                  | Client / Agent / RAG      |
+                  +-------------+-------------+
+                                |
+                       API Key + RBAC
+                                |
+                                v
+                  +---------------------------+
+                  | Multi-LLM AI Gateway      |
+                  |                           |
+                  | Rate Limit -> Budget      |
+                  |        |                  |
+                  | Dynamic Governance        |
+                  |        |                  |
+                  | Model / Policy Router     |
+                  +----+------+-------+-------+
+                       |      |       |
+                    OpenAI Anthropic Gemini
+                                |
+                     Usage / Cost / Trace
+                                |
+             +------------------+------------------+
+             |                  |                  |
+          Redis             Prometheus          OTEL
+   state + governance         /metrics          traces
+             |                  |
+       multi replicas          Grafana
 
-Gateway + provider spans -> OpenTelemetry Collector
+Admin Console /admin
+      |
+      +-- aliases / pools / pricing / policy
+      +-- API clients / RBAC
+      +-- audit log
 ```
 
-## Quick start — local Python
+## Quick start
 
 ```bash
 cp .env.example .env
@@ -59,109 +73,139 @@ pip install -e ".[dev]"
 uvicorn app.main:app --reload
 ```
 
-Without `REDIS_URL`, `STATE_BACKEND=auto` selects the in-memory backend.
+Default local credentials:
 
-## Quick start — full observability stack
+```text
+X-API-Key:   dev-gateway-key
+X-Admin-Key: dev-admin-key
+```
+
+Open:
+
+| Surface | URL |
+|---|---|
+| Swagger UI | http://localhost:8000/docs |
+| Admin Console | http://localhost:8000/admin |
+| Health | http://localhost:8000/health |
+| Readiness | http://localhost:8000/ready |
+| Metrics | http://localhost:8000/metrics |
+
+## Docker Compose stack
 
 ```bash
 cp .env.example .env
 docker compose up --build
 ```
 
-Services:
+Includes Gateway, Redis, Prometheus, Grafana, and OpenTelemetry Collector.
 
-| Service | URL |
-|---|---|
-| Gateway API | http://localhost:8000 |
-| Swagger UI | http://localhost:8000/docs |
-| Prometheus | http://localhost:9090 |
-| Grafana | http://localhost:3000 |
-| OTLP/HTTP | http://localhost:4318 |
+## RBAC
 
-The Compose stack automatically runs the Gateway with Redis distributed state and OTLP tracing.
+| Role | Read APIs | Chat Completion | Admin APIs |
+|---|---:|---:|---:|
+| viewer | Yes | No | No |
+| operator | Yes | Yes | No |
+| admin | Yes | Yes | Yes |
+
+The legacy `GATEWAY_API_KEY` remains a bootstrap `operator`.
+`ADMIN_API_KEY` is a bootstrap `admin`.
+
+Managed client keys are returned only at creation time. Only a SHA-256 digest is stored in the
+governance backend.
+
+## Dynamic governance
+
+The Admin API can update aliases, pools, pricing, and the default routing policy at runtime.
+With Redis active, the changes are visible to every Gateway replica immediately.
+
+Example:
+
+```bash
+curl -X PUT http://localhost:8000/admin/api/aliases/quality \
+  -H 'X-Admin-Key: dev-admin-key' \
+  -H 'Content-Type: application/json' \
+  -d '{"target":"mock:quality"}'
+```
+
+No application restart is required.
+
+## Enterprise Kubernetes deployment
+
+A Helm chart is included at:
+
+```text
+deploy/helm/multi-llm-ai-gateway
+```
+
+Validate and render it:
+
+```bash
+helm lint deploy/helm/multi-llm-ai-gateway
+helm template ai-gateway deploy/helm/multi-llm-ai-gateway
+```
+
+The chart provides 2 replicas by default, health/readiness probes, PodDisruptionBudget, hardened
+pod/container security contexts, resource limits, Prometheus annotations, optional HPA, and
+optional Ingress.
 
 ## API surface
 
 | Endpoint | Purpose |
 |---|---|
-| `POST /v1/chat/completions` | OpenAI-compatible chat request |
-| `GET /v1/providers` | Provider configuration and circuit state |
-| `GET /v1/models` | Aliases, pools, pricing, policy, backend |
-| `GET /v1/usage` | Token/request/cost accounting |
-| `GET /v1/budgets` | Daily/monthly budget status |
-| `GET /health` | Process health |
-| `GET /ready` | State backend readiness |
+| `POST /v1/chat/completions` | OpenAI-compatible model invocation |
+| `GET /v1/providers` | Provider + circuit status |
+| `GET /v1/models` | Effective aliases, pools, pricing, policy |
+| `GET /v1/usage` | Request/token/cost accounting |
+| `GET /v1/budgets` | Budget status |
+| `GET /admin` | Admin Console |
+| `/admin/api/*` | Runtime governance and client management |
+| `GET /health` | Liveness |
+| `GET /ready` | Backend readiness |
 | `GET /metrics` | Prometheus metrics |
-
-## Basic request
-
-```bash
-curl http://localhost:8000/v1/chat/completions \
-  -H 'Content-Type: application/json' \
-  -H 'X-API-Key: dev-gateway-key' \
-  -d '{
-    "model": "mock:demo",
-    "messages": [{"role": "user", "content": "Hello gateway"}]
-  }'
-```
-
-## Distributed state
-
-Set:
-
-```dotenv
-STATE_BACKEND=redis
-REDIS_URL=redis://localhost:6379/0
-REDIS_PREFIX=llm-gateway
-```
-
-Redis stores shared rate-limit windows, round-robin cursor, circuit state, usage/cost counters,
-daily/monthly budget state, and recent usage. Raw API keys are not used as Redis key names.
-
-## Observability
-
-Prometheus exports request count, token usage, estimated cost, provider attempts, latency,
-rate-limit rejects, and budget rejects.
-
-OpenTelemetry is enabled when:
-
-```dotenv
-OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318/v1/traces
-```
-
-The included Grafana provisioning creates an **AI Gateway** folder and dashboard automatically.
 
 ## Documentation
 
 - [Architecture](docs/architecture.md)
 - [Configuration](docs/configuration.md)
-- [Distributed state](docs/distributed-state.md)
+- [Admin Console](docs/admin-console.md)
+- [Enterprise Deployment](docs/enterprise-deployment.md)
+- [Distributed State](docs/distributed-state.md)
 - [Observability](docs/observability.md)
-- [Usage examples](docs/usage.md)
+- [Usage Examples](docs/usage.md)
 
 ## Release flow
 
 ```text
 Version change
    |
-   +-- Quality gate: Ruff + Pytest + Redis integration + Docker build
+   +-- Quality:
+   |     Ruff
+   |     Pytest
+   |     Redis integration
+   |     Docker build
+   |     Docker Compose config
+   |     Helm lint + template
    |
-   +-- Security gate: secret check + pip-audit
+   +-- Security:
+   |     Secret check
+   |     pip-audit
    |
-   +-- GitHub Actions creates semantic tag + GitHub Release
+   +-- Git tag + GitHub Release
 ```
 
 ## Roadmap
 
-- **v0.1** — unified chat API, adapters, routing, fallback, CI
-- **v0.2** — policy routing, retries, circuit breaker, budgets, cost accounting, rate limits
-- **v0.3** — Redis distributed state, Prometheus, OpenTelemetry, Grafana, release gates
-- **v0.4** — admin console, provider/model governance, enterprise deployment examples
+- **v0.1** — unified chat API, adapters, routing, fallback
+- **v0.2** — routing policies, retries, budgets, cost accounting, rate limits
+- **v0.3** — Redis distributed state, Prometheus, OpenTelemetry, Grafana
+- **v0.4** — Admin Console, dynamic governance, client RBAC, audit, Helm deployment
+- **v0.5** — streaming, richer enterprise identity/policy integration, deployment hardening
 
 ## 專案定位 / Project positioning
 
-此專案展示企業 AI 平台如何將 RAG、Agent、內部應用與個別 LLM Provider 解耦，並集中
-**Model Routing、Resilience、Cost Governance、Distributed State、Observability**。
+此專案展示企業 AI Platform 如何把 RAG、Agent、內部應用與 LLM Provider 解耦，集中處理
+**Model Routing、Resilience、Cost Governance、Distributed State、Observability、RBAC、
+Runtime Governance 與 Kubernetes Deployment**。
 
 ## License
 
