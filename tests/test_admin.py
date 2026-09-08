@@ -164,3 +164,74 @@ def test_disabled_client_is_rejected_and_audit_is_recorded() -> None:
     audit = client.get("/admin/api/audit", headers=ADMIN).json()["events"]
     resources = {event["resource"] for event in audit}
     assert f"client:{client_id}" in resources
+
+
+def test_policy_can_deny_streaming_for_operator() -> None:
+    policy = client.put(
+        "/admin/api/policies/no-stream",
+        headers=ADMIN,
+        json={
+            "priority": 10,
+            "effect": "allow",
+            "roles": ["operator"],
+            "models": ["mock:*"],
+            "allow_stream": False,
+        },
+    )
+    assert policy.status_code == 200
+
+    denied = client.post(
+        "/v1/chat/completions",
+        headers=BOOTSTRAP,
+        json={
+            "model": "mock:demo",
+            "stream": True,
+            "messages": [{"role": "user", "content": "policy"}],
+        },
+    )
+    assert denied.status_code == 403
+    assert denied.json()["detail"]["policy"] == "no-stream"
+    assert denied.json()["detail"]["reason"] == "streaming_denied"
+
+
+def test_explicit_deny_policy_blocks_matching_model() -> None:
+    assert client.put(
+        "/admin/api/policies/block-secret-model",
+        headers=ADMIN,
+        json={
+            "priority": 1,
+            "effect": "deny",
+            "models": ["mock:secret*"],
+        },
+    ).status_code == 200
+
+    denied = client.post(
+        "/v1/chat/completions",
+        headers=BOOTSTRAP,
+        json={
+            "model": "mock:secret-v1",
+            "messages": [{"role": "user", "content": "blocked"}],
+        },
+    )
+    assert denied.status_code == 403
+    assert denied.json()["detail"]["reason"] == "explicit_deny"
+
+
+def test_client_key_rotation_invalidates_old_key() -> None:
+    created = create_client("operator", "rotate-me")
+    old_key = created["api_key"]
+
+    rotated = client.post(
+        f"/admin/api/clients/{created['id']}/rotate-key",
+        headers=ADMIN,
+    )
+    assert rotated.status_code == 200
+    new_key = rotated.json()["api_key"]
+    assert new_key.startswith("llmgw_")
+    assert new_key != old_key
+
+    assert client.get("/v1/models", headers={"X-API-Key": old_key}).status_code == 401
+    assert client.get("/v1/models", headers={"X-API-Key": new_key}).status_code == 200
+
+    audit = client.get("/admin/api/audit", headers=ADMIN).json()["events"]
+    assert any(event["action"] == "rotate_key" for event in audit)
