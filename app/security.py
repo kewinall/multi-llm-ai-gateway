@@ -1,7 +1,7 @@
 import secrets
 from typing import Annotated, Literal
 
-from fastapi import Header, HTTPException, Request, status
+from fastapi import Depends, Header, HTTPException, Request, status
 from pydantic import BaseModel
 
 Role = Literal["viewer", "operator", "admin"]
@@ -81,7 +81,7 @@ async def require_api_key(
 
 
 async def require_operator(
-    principal: Annotated[Principal, require_api_key],
+    principal: Annotated[Principal, Depends(require_api_key)],
 ) -> Principal:
     if principal.role not in {"operator", "admin"}:
         raise HTTPException(
