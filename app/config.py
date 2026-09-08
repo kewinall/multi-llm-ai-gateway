@@ -12,6 +12,15 @@ class Settings(BaseSettings):
     admin_api_key: str = "dev-admin-key"
     request_timeout_seconds: float = 60.0
 
+    oidc_issuer: str | None = None
+    oidc_audience: str | None = None
+    oidc_jwks_url: str | None = None
+    oidc_role_claim: str = "roles"
+    oidc_name_claim: str = "preferred_username"
+    oidc_default_role: str = "viewer"
+    oidc_algorithms_csv: str = "RS256"
+    oidc_jwks_cache_seconds: int = 300
+
     openai_api_key: str | None = None
     anthropic_api_key: str | None = None
     google_api_key: str | None = None
@@ -26,6 +35,7 @@ class Settings(BaseSettings):
     model_pricing_json: str = (
         '{"mock:demo":{"input_per_million":0.0,"output_per_million":0.0}}'
     )
+    policies_json: str = "{}"
 
     routing_policy: str = "priority"
     provider_retry_attempts: int = 1
@@ -70,6 +80,24 @@ class Settings(BaseSettings):
         if not isinstance(value, list):
             raise ValueError("FALLBACK_MODELS_JSON must be a JSON array")
         return [str(model) for model in value]
+
+    @property
+    def oidc_algorithms(self) -> list[str]:
+        return [
+            value.strip()
+            for value in self.oidc_algorithms_csv.split(",")
+            if value.strip()
+        ]
+
+    @property
+    def policies(self) -> dict[str, dict[str, Any]]:
+        value = self._json_object(self.policies_json, "POLICIES_JSON")
+        policies: dict[str, dict[str, Any]] = {}
+        for name, rule in value.items():
+            if not isinstance(rule, dict):
+                raise ValueError("Every POLICIES_JSON value must be a JSON object")
+            policies[str(name)] = dict(rule)
+        return policies
 
     @property
     def model_pricing(self) -> dict[str, dict[str, float]]:
