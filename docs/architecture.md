@@ -2,8 +2,8 @@
 
 ## 目標 / Goal
 
-讓 Agent、RAG、Web 應用與批次工作只整合一種 Chat Completion API，同時把模型選擇、
-fallback、成本、預算與 resilience 集中在 Gateway 控制。
+v0.3 將 Gateway 從單 process governance reference implementation 提升為可支援多 replica
+的分散式架構，並加入 metrics、trace 與 readiness。
 
 ## Request flow
 
@@ -11,115 +11,116 @@ fallback、成本、預算與 resilience 集中在 Gateway 控制。
 Client
   |
   v
+FastAPI + request/trace context
+  |
+  v
 API key authentication
   |
   v
-Rate limiter ---------> 429 when exceeded
+Distributed Rate Limit ------> HTTP 429
   |
   v
-Budget check ---------> 429 when exhausted
+Distributed Budget ----------> HTTP 429
   |
   v
-Model pool + routing policy
-  |   priority / round_robin / random / cost
+Model Pool / Routing Policy
+  |  priority / round_robin / random / cost
   v
-Circuit breaker
+Distributed Circuit Breaker
   |
   v
-Provider retry
+Provider Retry / Fallback
   |
-  +------ failure ------> next candidate / fallback
-  |
-  v
-Provider adapter
-  |
-  v
-Normalized OpenAI-style response
+  +---- OpenAI
+  +---- Anthropic
+  +---- Google Gemini
+  +---- Mock
   |
   v
-Token usage -> pricing -> usage store -> budget counters
+Usage + Pricing
+  |
+  +---- Redis: usage / cost / budget state
+  |
+  +---- Prometheus: metrics
+  |
+  +---- OpenTelemetry: spans
   |
   v
-Response + routing/cost metadata + X-Request-ID
+OpenAI-compatible response
 ```
 
-## Components
+## State backend abstraction
 
 ```text
-app/main.py
-  |
-  +-- security.py
-  +-- rate_limit.py
-  +-- budget.py
-  +-- usage.py
-  +-- pricing.py
-  +-- resilience.py
-  |
-  +-- router.py
-        |
-        +-- providers/openai.py
-        +-- providers/anthropic.py
-        +-- providers/google.py
-        +-- providers/mock.py
+                       StateBackend
+                      /            \
+          InMemoryStateBackend    RedisStateBackend
+                 |                       |
+             local demo             multi replica
+             unit tests             distributed
 ```
 
-## Routing layer
+The same RateLimiter, BudgetManager, UsageStore, CircuitBreaker, and ModelRouter consume this
+interface. Application logic does not need separate Redis-specific code paths.
 
-### Alias
+## Redis state
 
-一個 stable name 對應一個實體模型，例如 `default -> mock:demo`。
+Redis provides shared state for:
 
-### Pool
+- sliding-window rate limiting
+- round-robin cursor
+- circuit breaker
+- total/model usage
+- daily/monthly cost
+- budget evaluation
+- recent usage
 
-一個 logical name 對應多個候選模型，例如 `balanced -> [OpenAI, Anthropic, Gemini]`。
-Policy 決定候選順序，provider failure 則依序嘗試後續模型。
+Rate-limit identities are hashed before becoming Redis keys.
 
-### Routing metadata
+## Observability
 
-每次成功回應都包含：
+### Prometheus
 
-- requested model
-- selected provider/model
-- routing policy
-- candidate order
-- 每次 provider attempt / retry 結果
-- fallback 是否發生
-- 本次估算成本與 pricing-known flag
-- request 完成後的 budget 狀態
+`/metrics` exports request, latency, token, cost, provider-attempt and rejection metrics.
 
-## Governance layer
+### OpenTelemetry
 
-### Usage & pricing
+When an OTLP endpoint is configured:
 
-Gateway 使用 normalized `usage.prompt_tokens` / `completion_tokens` 計算成本，並依
-provider:model 累積 token 與 USD 使用量。
+- FastAPI inbound requests are instrumented
+- HTTPX outbound LLM calls are instrumented
+- `llm.gateway.route` captures route decisions
+- `llm.provider.request` captures provider/model/retry attributes
 
-### Rate limit
+### Grafana
 
-v0.2 採 per-API-key 60-second sliding window。
+The reference Compose deployment provisions a Prometheus datasource and AI Gateway dashboard.
 
-### Budget
+## Health model
 
-支援 daily / monthly USD hard limit，檢查的是已累積實際成本。
-
-### Circuit breaker
-
-Provider 達到 failure threshold 後進入 open state；recovery window 後允許 probe，
-成功後回 closed。
-
-## API surface
-
-| Endpoint | Purpose |
+| Endpoint | Meaning |
 |---|---|
-| `POST /v1/chat/completions` | OpenAI-compatible chat request |
-| `GET /v1/providers` | Provider configuration + circuit state |
-| `GET /v1/models` | Alias, pools, pricing and default policy |
-| `GET /v1/usage` | Token / request / cost accounting |
-| `GET /v1/budgets` | Daily and monthly budget status |
-| `GET /health` | Service health |
+| `/health` | Application process is alive |
+| `/ready` | Selected state backend is available |
+| `/metrics` | Prometheus scrape endpoint |
 
-## v0.2 limitation / v0.3 boundary
+This separation lets orchestrators remove a replica from traffic when Redis is unavailable without
+treating the process itself as dead.
 
-所有 runtime governance state 都是 process-local memory，因此 v0.2 適合單 instance、
-PoC、架構展示與 integration testing。v0.3 會將這些 state 移到 Redis，並加入 metrics、
-tracing 與分散式觀測能力。
+## CI and release gate
+
+```text
+main / version change
+      |
+      +--> CI: Ruff + Pytest + Redis integration + Docker build
+      |
+      +--> Release quality gate
+      |
+      +--> Release security gate: local-secret check + pip-audit
+                    |
+                    v
+              Git tag + Release
+```
+
+The Redis integration test uses two separate Redis clients with one shared prefix to verify
+distributed state visibility explicitly.
