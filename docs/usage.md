@@ -1,6 +1,6 @@
 # 使用範例 / Usage
 
-## Mock provider
+## Chat Completion
 
 ```bash
 curl http://localhost:8000/v1/chat/completions \
@@ -12,70 +12,123 @@ curl http://localhost:8000/v1/chat/completions \
   }'
 ```
 
-## Provider-qualified models
+## Admin Console
 
-```json
-{"model":"openai:gpt-5","messages":[{"role":"user","content":"Summarize this."}]}
+Open:
+
+```text
+http://localhost:8000/admin
 ```
 
-```json
-{"model":"anthropic:claude-sonnet-4-5","messages":[{"role":"user","content":"Review this."}]}
+Development Admin Key:
+
+```text
+dev-admin-key
 ```
 
-```json
-{"model":"google:gemini-2.5-pro","messages":[{"role":"user","content":"Explain this."}]}
+## Create a managed client
+
+```bash
+curl -X POST http://localhost:8000/admin/api/clients \
+  -H 'X-Admin-Key: dev-admin-key' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "name":"rag-service",
+    "role":"operator",
+    "rate_limit_requests_per_minute":30
+  }'
 ```
 
-Configure the corresponding Provider API key before using external models.
+The response contains `api_key` once. Save it securely.
 
-## Policy routing
+Use it:
+
+```bash
+curl http://localhost:8000/v1/models \
+  -H 'X-API-Key: llmgw_<generated-key>'
+```
+
+## Dynamic alias
+
+```bash
+curl -X PUT http://localhost:8000/admin/api/aliases/quality \
+  -H 'X-Admin-Key: dev-admin-key' \
+  -H 'Content-Type: application/json' \
+  -d '{"target":"mock:quality"}'
+```
+
+The next request may immediately use:
 
 ```json
 {
-  "model": "balanced",
-  "routing_policy": "round_robin",
-  "messages": [{"role": "user", "content": "Route me"}]
+  "model": "quality",
+  "messages": [{"role": "user", "content": "Use the managed alias"}]
 }
 ```
 
-With Redis enabled, the round-robin cursor is shared by all Gateway replicas.
+## Dynamic model pool and cost routing
 
-## Usage and budget
+Create a pool:
+
+```bash
+curl -X PUT http://localhost:8000/admin/api/pools/balanced \
+  -H 'X-Admin-Key: dev-admin-key' \
+  -H 'Content-Type: application/json' \
+  -d '{"models":["mock:premium","mock:cheap"]}'
+```
+
+Set prices:
+
+```bash
+curl -X PUT http://localhost:8000/admin/api/pricing/mock:cheap \
+  -H 'X-Admin-Key: dev-admin-key' \
+  -H 'Content-Type: application/json' \
+  -d '{"input_per_million":1,"output_per_million":2}'
+```
+
+Then choose `cost` either per request or as the global runtime policy.
+
+## Audit
+
+```bash
+curl http://localhost:8000/admin/api/audit \
+  -H 'X-Admin-Key: dev-admin-key'
+```
+
+## RBAC behavior
+
+- viewer: read APIs only
+- operator: read + Chat Completion
+- admin: operator + Admin API
+
+## Usage / budget
 
 ```bash
 curl http://localhost:8000/v1/usage -H 'X-API-Key: dev-gateway-key'
 curl http://localhost:8000/v1/budgets -H 'X-API-Key: dev-gateway-key'
 ```
 
-The usage response includes `backend: memory|redis`.
-
-## Health and readiness
+## Health / metrics
 
 ```bash
 curl http://localhost:8000/health
 curl http://localhost:8000/ready
-```
-
-With Redis selected, `/ready` returns HTTP 503 if the Redis backend cannot be reached.
-
-## Prometheus
-
-```bash
 curl http://localhost:8000/metrics
 ```
 
-## Full stack
+## Docker Compose
 
 ```bash
 cp .env.example .env
 docker compose up --build
 ```
 
-Open:
+## Helm
 
-- Gateway: http://localhost:8000/docs
-- Prometheus: http://localhost:9090
-- Grafana: http://localhost:3000
+```bash
+helm lint deploy/helm/multi-llm-ai-gateway
+helm template ai-gateway deploy/helm/multi-llm-ai-gateway
+```
 
-The included Compose file configures the Gateway to use Redis and send OTLP/HTTP traces to the
-OpenTelemetry Collector.
+See [Enterprise Deployment](enterprise-deployment.md) for the Kubernetes Secret contract and
+installation example.
