@@ -52,6 +52,14 @@ jobs:
           cp .env.example .env
           docker compose config --quiet
 
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+
+      - name: Validate Helm chart
+        run: |
+          helm lint deploy/helm/multi-llm-ai-gateway
+          helm template release deploy/helm/multi-llm-ai-gateway >/tmp/rendered.yaml
+
   security:
     runs-on: ubuntu-latest
     steps:
