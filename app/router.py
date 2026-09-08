@@ -1,15 +1,16 @@
 import random
 from dataclasses import dataclass
-from threading import Lock
 from typing import Any
 
 from app.config import Settings
 from app.errors import GatewayError, ProviderRequestError
 from app.models import ChatCompletionRequest
+from app.observability import tracer
 from app.pricing import PricingCatalog
 from app.providers import AnthropicProvider, GoogleProvider, MockProvider, OpenAIProvider
 from app.providers.base import BaseProvider
 from app.resilience import CircuitBreaker
+from app.state import StateBackend
 
 
 @dataclass(frozen=True)
@@ -23,12 +24,15 @@ class ModelRouter:
     def __init__(
         self,
         settings: Settings,
+        state_backend: StateBackend,
         pricing: PricingCatalog | None = None,
         circuit_breaker: CircuitBreaker | None = None,
     ) -> None:
         self.settings = settings
+        self.state_backend = state_backend
         self.pricing = pricing or PricingCatalog(settings)
         self.circuit_breaker = circuit_breaker or CircuitBreaker(
+            state_backend,
             failure_threshold=settings.circuit_failure_threshold,
             recovery_seconds=settings.circuit_recovery_seconds,
         )
@@ -38,8 +42,7 @@ class ModelRouter:
             "google": GoogleProvider(settings),
             "mock": MockProvider(),
         }
-        self._round_robin_cursors: dict[str, int] = {}
-        self._round_robin_lock = Lock()
+        self._tracer = tracer(__name__)
 
     def resolve(self, model_name: str) -> RouteTarget:
         canonical = self.settings.model_aliases.get(model_name, model_name)
@@ -52,15 +55,17 @@ class ModelRouter:
             raise ValueError(f"Invalid model target '{canonical}'")
         return RouteTarget(provider=provider, model=model, canonical=canonical)
 
-    def provider_status(self) -> list[dict[str, Any]]:
-        return [
-            {
-                "name": name,
-                "configured": provider.configured(),
-                "circuit": self.circuit_breaker.status(name),
-            }
-            for name, provider in self.providers.items()
-        ]
+    async def provider_status(self) -> list[dict[str, Any]]:
+        rows: list[dict[str, Any]] = []
+        for name, provider in self.providers.items():
+            rows.append(
+                {
+                    "name": name,
+                    "configured": provider.configured(),
+                    "circuit": await self.circuit_breaker.status(name),
+                }
+            )
+        return rows
 
     def model_catalog(self) -> dict[str, Any]:
         return {
@@ -68,6 +73,7 @@ class ModelRouter:
             "pools": self.settings.model_pools,
             "pricing": self.pricing.as_dict(),
             "default_routing_policy": self.settings.routing_policy,
+            "state_backend": self.state_backend.name,
         }
 
     def _dedupe_targets(self, candidates: list[str]) -> list[RouteTarget]:
@@ -81,15 +87,20 @@ class ModelRouter:
             targets.append(target)
         return targets
 
-    def _round_robin(self, key: str, targets: list[RouteTarget]) -> list[RouteTarget]:
+    async def _round_robin(
+        self,
+        key: str,
+        targets: list[RouteTarget],
+    ) -> list[RouteTarget]:
         if len(targets) < 2:
             return targets
-        with self._round_robin_lock:
-            cursor = self._round_robin_cursors.get(key, 0) % len(targets)
-            self._round_robin_cursors[key] = cursor + 1
+        cursor = await self.state_backend.round_robin_index(key, len(targets))
         return targets[cursor:] + targets[:cursor]
 
-    def candidates(self, request: ChatCompletionRequest) -> tuple[str, list[RouteTarget]]:
+    async def candidates(
+        self,
+        request: ChatCompletionRequest,
+    ) -> tuple[str, list[RouteTarget]]:
         configured_pool = self.settings.model_pools.get(request.model)
         candidates = list(configured_pool) if configured_pool else [request.model]
         candidates.extend(self.settings.fallback_models)
@@ -99,7 +110,7 @@ class ModelRouter:
         if policy == "priority":
             pass
         elif policy == "round_robin":
-            targets = self._round_robin(request.model, targets)
+            targets = await self._round_robin(request.model, targets)
         elif policy == "random":
             targets = list(targets)
             random.shuffle(targets)
@@ -114,9 +125,10 @@ class ModelRouter:
         return policy, targets
 
     async def route(
-        self, request: ChatCompletionRequest
+        self,
+        request: ChatCompletionRequest,
     ) -> tuple[dict[str, Any], dict[str, Any]]:
-        policy, targets = self.candidates(request)
+        policy, targets = await self.candidates(request)
         attempts: list[dict[str, Any]] = []
         retry_limit = max(self.settings.provider_retry_attempts, 0)
 
@@ -133,7 +145,7 @@ class ModelRouter:
                 )
                 continue
 
-            if not self.circuit_breaker.allow(target.provider):
+            if not await self.circuit_breaker.allow(target.provider):
                 attempts.append(
                     {
                         "target": target.canonical,
@@ -145,36 +157,43 @@ class ModelRouter:
                 continue
 
             for retry in range(retry_limit + 1):
-                try:
-                    result = await provider.chat(target.model, request)
-                    self.circuit_breaker.success(target.provider)
-                    attempts.append(
-                        {
-                            "target": target.canonical,
-                            "retry": retry,
-                            "status": "success",
+                with self._tracer.start_as_current_span("llm.provider.request") as span:
+                    span.set_attribute("llm.provider", target.provider)
+                    span.set_attribute("llm.model", target.model)
+                    span.set_attribute("llm.routing.policy", policy)
+                    span.set_attribute("llm.retry", retry)
+                    try:
+                        result = await provider.chat(target.model, request)
+                        await self.circuit_breaker.success(target.provider)
+                        attempts.append(
+                            {
+                                "target": target.canonical,
+                                "retry": retry,
+                                "status": "success",
+                            }
+                        )
+                        route_metadata = {
+                            "provider": target.provider,
+                            "model": target.model,
+                            "requested_model": request.model,
+                            "routing_policy": policy,
+                            "candidate_order": [item.canonical for item in targets],
+                            "attempts": attempts,
+                            "fallback_used": target_index > 0,
+                            "state_backend": self.state_backend.name,
                         }
-                    )
-                    route_metadata = {
-                        "provider": target.provider,
-                        "model": target.model,
-                        "requested_model": request.model,
-                        "routing_policy": policy,
-                        "candidate_order": [item.canonical for item in targets],
-                        "attempts": attempts,
-                        "fallback_used": target_index > 0,
-                    }
-                    return result, route_metadata
-                except GatewayError as exc:
-                    self.circuit_breaker.failure(target.provider)
-                    attempts.append(
-                        {
-                            "target": target.canonical,
-                            "retry": retry,
-                            "status": "failed",
-                            "error": type(exc).__name__,
-                        }
-                    )
+                        return result, route_metadata
+                    except GatewayError as exc:
+                        span.record_exception(exc)
+                        await self.circuit_breaker.failure(target.provider)
+                        attempts.append(
+                            {
+                                "target": target.canonical,
+                                "retry": retry,
+                                "status": "failed",
+                                "error": type(exc).__name__,
+                            }
+                        )
 
         summary = ", ".join(
             f"{attempt['target']}={attempt.get('error', attempt['status'])}"
