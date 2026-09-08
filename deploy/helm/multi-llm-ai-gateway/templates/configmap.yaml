@@ -15,3 +15,9 @@ data:
   CIRCUIT_RECOVERY_SECONDS: {{ .Values.config.circuitRecoverySeconds | quote }}
   OTEL_SERVICE_NAME: {{ .Values.config.otelServiceName | quote }}
   OTEL_EXPORTER_OTLP_ENDPOINT: {{ .Values.config.otelExporterOtlpEndpoint | quote }}
+  OIDC_ISSUER: {{ .Values.config.oidcIssuer | quote }}
+  OIDC_AUDIENCE: {{ .Values.config.oidcAudience | quote }}
+  OIDC_JWKS_URL: {{ .Values.config.oidcJwksUrl | quote }}
+  OIDC_ROLE_CLAIM: {{ .Values.config.oidcRoleClaim | quote }}
+  OIDC_NAME_CLAIM: {{ .Values.config.oidcNameClaim | quote }}
+  OIDC_DEFAULT_ROLE: {{ .Values.config.oidcDefaultRole | quote }}
