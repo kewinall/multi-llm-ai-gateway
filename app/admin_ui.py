@@ -1,3 +1,5 @@
+# ruff: noqa: E501
+
 from fastapi.responses import HTMLResponse
 
 
