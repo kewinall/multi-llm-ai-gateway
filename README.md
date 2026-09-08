@@ -2,19 +2,24 @@
 
 > 企業級多模型 AI Gateway 範例 / Enterprise multi-provider AI gateway reference implementation.
 
-A lightweight **OpenAI-compatible gateway** that provides one API surface for multiple LLM providers, with model routing, fallback, health checks, and request metadata.
+An **OpenAI-compatible AI Gateway** that decouples applications from LLM vendors and centralizes
+routing, fallback, retries, cost accounting, budgets, rate limits, and provider resilience.
 
-## 功能 / Features
+## v0.2 Features
 
-- **單一 API / Unified API**: `POST /v1/chat/completions`
-- **多 Provider / Multi-provider**: OpenAI, Anthropic, Google Gemini, and Mock
-- **模型路由 / Model routing**: explicit provider prefix or configured aliases
-- **Fallback**: retry the same request against alternate providers/models
-- **OpenAI-compatible response**: client applications only need one integration
-- **Health & provider status**: `GET /health`, `GET /v1/providers`
-- **Request ID**: every response includes `X-Request-ID`
+- **Unified API**: `POST /v1/chat/completions`
+- **Providers**: OpenAI, Anthropic, Google Gemini, Mock
+- **Logical aliases and model pools**
+- **Routing policies**: priority, round-robin, random, cost-aware
+- **Fallback + provider retry**
+- **Circuit breaker**
+- **Token / cost accounting**
+- **Daily / monthly budget enforcement**
+- **Per-API-key rate limiting**
+- **Governance APIs**: models, providers, usage, budgets
+- **Request ID + detailed routing metadata**
 - **Docker-ready**
-- **CI**: Ruff + Pytest
+- **CI**: Ruff + Pytest + Docker build
 
 ## Architecture
 
@@ -22,20 +27,22 @@ A lightweight **OpenAI-compatible gateway** that provides one API surface for mu
 Client / Agent / RAG
         |
         v
-+---------------------------+
-|  Multi-LLM AI Gateway     |
-|  FastAPI                  |
-|                           |
-|  OpenAI-compatible API    |
-|       |                   |
-|       v                   |
-|  Router + Fallback        |
-|   /       |       \       |
-| OpenAI  Anthropic Gemini  |
-+---------------------------+
-        |
-        v
- Provider APIs
++----------------------------------+
+| Multi-LLM AI Gateway             |
+|                                  |
+| Auth -> Rate Limit -> Budget     |
+|                |                 |
+|                v                 |
+|      Model Pool / Policy Router  |
+| priority | RR | random | cost    |
+|                |                 |
+|        Retry + Circuit Breaker   |
+|         /       |       \        |
+|     OpenAI  Anthropic  Gemini    |
+|                |                 |
+|                v                 |
+|      Usage / Cost Accounting     |
++----------------------------------+
 ```
 
 ## Quick start
@@ -54,13 +61,16 @@ Or:
 docker compose up --build
 ```
 
-Then open:
+Then:
 
 - API docs: http://localhost:8000/docs
 - Health: http://localhost:8000/health
 - Providers: http://localhost:8000/v1/providers
+- Models: http://localhost:8000/v1/models
+- Usage: http://localhost:8000/v1/usage
+- Budgets: http://localhost:8000/v1/budgets
 
-## Example
+## Basic request
 
 ```bash
 curl http://localhost:8000/v1/chat/completions \
@@ -68,43 +78,52 @@ curl http://localhost:8000/v1/chat/completions \
   -H 'X-API-Key: dev-gateway-key' \
   -d '{
     "model": "mock:demo",
-    "messages": [
-      {"role": "user", "content": "Hello gateway"}
-    ]
+    "messages": [{"role": "user", "content": "Hello gateway"}]
   }'
 ```
 
-The `mock` provider is built in so the repository can be tested without external credentials.
+## Policy routing example
 
-## Model naming
+Configure a model pool:
 
-Use `provider:model`:
-
-```text
-openai:gpt-5
-anthropic:claude-sonnet-4-5
-google:gemini-2.5-pro
-mock:demo
+```dotenv
+MODEL_POOLS_JSON={"balanced":["mock:primary","mock:secondary"]}
+MODEL_PRICING_JSON={"mock:primary":{"input_per_million":2,"output_per_million":4},"mock:secondary":{"input_per_million":1,"output_per_million":2}}
 ```
 
-Aliases can be configured through `MODEL_ALIASES_JSON`.
+Then request cost-aware routing:
 
-## Configuration
+```json
+{
+  "model": "balanced",
+  "routing_policy": "cost",
+  "messages": [{"role": "user", "content": "Route this request"}]
+}
+```
 
-See [docs/configuration.md](docs/configuration.md).
+The response includes a `gateway` object with the selected provider/model, candidate ordering,
+retry attempts, fallback state, request cost, and budget status.
+
+## Documentation
+
+- [Architecture](docs/architecture.md)
+- [Configuration](docs/configuration.md)
+- [Usage examples](docs/usage.md)
 
 ## Roadmap
 
 - **v0.1** — unified chat API, adapters, routing, fallback, CI
-- **v0.2** — policy routing, budgets, token/cost accounting, rate limits
+- **v0.2** — policy routing, retries, circuit breaker, budgets, token/cost accounting, rate limits
 - **v0.3** — Redis-backed distributed state, observability, metrics, tracing
 - **v0.4** — admin console, provider/model governance, enterprise deployment examples
 
 ## 專案定位 / Project positioning
 
-此專案適合作為企業 AI 平台的共用入口層，將 RAG、Agent、內部應用與不同 LLM Provider 解耦，讓模型切換、fallback、治理與成本控制可以集中處理。
+此專案展示企業 AI 平台如何將 RAG、Agent、內部應用與個別 LLM Provider 解耦，並把
+**Model Routing、Resilience、Cost Governance** 集中到共用 Gateway。
 
-This project demonstrates how an enterprise AI platform can decouple applications, RAG systems, and agents from individual LLM vendors through a centrally governed gateway.
+v0.2 的治理狀態目前採 in-memory 實作；這是刻意保留給 v0.3 Redis distributed state
+升級的架構邊界。
 
 ## License
 
