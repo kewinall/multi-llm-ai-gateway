@@ -34,6 +34,13 @@ class Settings(BaseSettings):
     circuit_failure_threshold: int = 3
     circuit_recovery_seconds: float = 30.0
 
+    state_backend: str = "auto"
+    redis_url: str | None = None
+    redis_prefix: str = "llm-gateway"
+
+    otel_service_name: str = "multi-llm-ai-gateway"
+    otel_exporter_otlp_endpoint: str | None = None
+
     @staticmethod
     def _json_object(raw: str, variable: str) -> dict[str, Any]:
         value = json.loads(raw)
