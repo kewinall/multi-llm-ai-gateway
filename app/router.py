@@ -1,6 +1,7 @@
 import random
 from dataclasses import dataclass
 from math import inf
+from collections.abc import AsyncIterator
 from typing import Any
 
 from app.config import Settings
@@ -147,6 +148,89 @@ class ModelRouter:
             raise ValueError(f"Unsupported routing policy '{policy}'")
 
         return policy, targets, snapshot
+
+    async def stream_route(
+        self,
+        request: ChatCompletionRequest,
+    ) -> tuple[AsyncIterator[dict[str, Any]], dict[str, Any]]:
+        policy, targets, snapshot = await self.candidates(request)
+        attempts: list[dict[str, Any]] = []
+
+        for target_index, target in enumerate(targets):
+            provider = self.providers.get(target.provider)
+            if provider is None:
+                attempts.append(
+                    {
+                        "target": target.canonical,
+                        "retry": 0,
+                        "status": "skipped",
+                        "error": f"unknown provider '{target.provider}'",
+                    }
+                )
+                continue
+            if not provider.configured():
+                attempts.append(
+                    {
+                        "target": target.canonical,
+                        "retry": 0,
+                        "status": "skipped",
+                        "error": "provider_not_configured",
+                    }
+                )
+                continue
+            if not await self.circuit_breaker.allow(target.provider):
+                attempts.append(
+                    {
+                        "target": target.canonical,
+                        "retry": 0,
+                        "status": "skipped",
+                        "error": "circuit_open",
+                    }
+                )
+                continue
+
+            attempts.append(
+                {
+                    "target": target.canonical,
+                    "retry": 0,
+                    "status": "stream_selected",
+                }
+            )
+            metadata = {
+                "provider": target.provider,
+                "model": target.model,
+                "requested_model": request.model,
+                "routing_policy": policy,
+                "candidate_order": [item.canonical for item in targets],
+                "attempts": attempts,
+                "fallback_used": target_index > 0,
+                "state_backend": self.state_backend.name,
+                "governance_distributed": snapshot["governance_distributed"],
+                "stream": True,
+            }
+
+            async def wrapped_stream(
+                selected_provider: BaseProvider = provider,
+                selected_target: RouteTarget = target,
+            ) -> AsyncIterator[dict[str, Any]]:
+                try:
+                    async for chunk in selected_provider.stream(
+                        selected_target.model,
+                        request,
+                    ):
+                        yield chunk
+                    await self.circuit_breaker.success(selected_target.provider)
+                except GatewayError:
+                    await self.circuit_breaker.failure(selected_target.provider)
+                    raise
+
+            return wrapped_stream(), metadata
+
+        summary = ", ".join(
+            f"{attempt['target']}={attempt.get('error', attempt['status'])}"
+            for attempt in attempts
+        )
+        raise ProviderRequestError(f"All streaming candidates failed: {summary}")
 
     async def route(
         self,
