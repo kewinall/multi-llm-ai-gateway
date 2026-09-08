@@ -3,6 +3,7 @@ import pytest
 from app.config import Settings
 from app.models import ChatCompletionRequest, ChatMessage
 from app.router import ModelRouter
+from app.state import InMemoryStateBackend
 
 
 @pytest.mark.asyncio
@@ -14,7 +15,7 @@ async def test_fallback_to_mock_when_primary_is_not_configured() -> None:
         model_aliases_json='{"primary":"openai:not-configured"}',
         fallback_models_json='["mock:demo"]',
     )
-    router = ModelRouter(settings)
+    router = ModelRouter(settings, InMemoryStateBackend())
     request = ChatCompletionRequest(
         model="primary",
         messages=[ChatMessage(role="user", content="fallback")],
@@ -27,6 +28,7 @@ async def test_fallback_to_mock_when_primary_is_not_configured() -> None:
     assert metadata["fallback_used"] is True
     assert len(metadata["attempts"]) == 3
     assert metadata["attempts"][-1]["status"] == "success"
+    assert metadata["state_backend"] == "memory"
 
 
 @pytest.mark.asyncio
@@ -40,7 +42,7 @@ async def test_cost_policy_selects_cheapest_known_model() -> None:
             '"mock:cheap":{"input_per_million":1,"output_per_million":2}}'
         ),
     )
-    router = ModelRouter(settings)
+    router = ModelRouter(settings, InMemoryStateBackend())
     request = ChatCompletionRequest(
         model="cheap",
         routing_policy="cost",
@@ -60,15 +62,17 @@ async def test_round_robin_rotates_pool() -> None:
         model_aliases_json="{}",
         model_pools_json='{"balanced":["mock:a","mock:b"]}',
     )
-    router = ModelRouter(settings)
+    state = InMemoryStateBackend()
+    first_router = ModelRouter(settings, state)
+    second_router = ModelRouter(settings, state)
     request = ChatCompletionRequest(
         model="balanced",
         routing_policy="round_robin",
         messages=[ChatMessage(role="user", content="rotate")],
     )
 
-    _first_result, first = await router.route(request)
-    _second_result, second = await router.route(request)
+    _first_result, first = await first_router.route(request)
+    _second_result, second = await second_router.route(request)
 
     assert first["candidate_order"] == ["mock:a", "mock:b"]
     assert second["candidate_order"] == ["mock:b", "mock:a"]
@@ -77,7 +81,7 @@ async def test_round_robin_rotates_pool() -> None:
 
 
 def test_resolve_requires_provider_prefix_or_alias() -> None:
-    router = ModelRouter(Settings(model_aliases_json="{}"))
+    router = ModelRouter(Settings(model_aliases_json="{}"), InMemoryStateBackend())
 
     with pytest.raises(ValueError):
         router.resolve("missing-prefix")
