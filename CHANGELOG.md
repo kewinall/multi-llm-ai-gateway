@@ -2,6 +2,36 @@
 
 All notable changes to this project are documented here.
 
+## [0.4.0] - 2026-09-09
+
+### Added
+
+- Embedded Admin Console at `GET /admin`
+- Runtime Admin API for aliases, pools, pricing, routing policy, clients, and audit events
+- Dynamic governance store for memory and Redis backends
+- Redis-backed governance shared across Gateway replicas
+- Managed API client creation, update, disable, and deletion
+- API keys generated with `llmgw_` prefix and stored as SHA-256 digests only
+- RBAC roles: `viewer`, `operator`, and `admin`
+- Bootstrap `ADMIN_API_KEY` administrator credential
+- Backward-compatible `GATEWAY_API_KEY` bootstrap operator
+- Per-client requests-per-minute override
+- Governance audit log
+- Dynamic cost routing and pricing without application restart
+- Helm chart for Kubernetes deployment
+- Default two-replica deployment
+- Liveness/readiness probes, PodDisruptionBudget, hardened security context, and resource limits
+- Optional HPA and Ingress
+- Helm lint/template validation in CI and Release quality gates
+- Redis integration coverage for shared governance, managed clients, and audit state
+
+### Changed
+
+- Router reads the effective governance snapshot at request time
+- Cost calculation uses dynamically governed pricing
+- Chat response includes authenticated client identity metadata
+- OpenTelemetry route span records client id and role
+
 ## [0.3.0] - 2026-09-09
 
 ### Added
@@ -14,48 +44,30 @@ All notable changes to this project are documented here.
 - Redis-backed daily/monthly budget counters
 - Redis readiness checks through `GET /ready`
 - Prometheus metrics through `GET /metrics`
-- Request, token, cost, latency, provider-attempt, rate-limit, and budget metrics
 - OpenTelemetry FastAPI and HTTPX instrumentation
-- Explicit `llm.gateway.route` and `llm.provider.request` spans
 - Docker Compose observability stack with Redis, Prometheus, Grafana, and OTel Collector
-- Provisioned Grafana Prometheus datasource and AI Gateway dashboard
-- Redis multi-client integration test proving distributed state sharing
 - Automatic semantic Git tag and GitHub Release workflow
-- Release quality gate with Redis integration tests and Docker build
 - Release security gate with secret checks and `pip-audit`
-
-### Changed
-
-- Runtime governance APIs are asynchronous
-- API keys are hashed before being used as rate-limit state identifiers
-- `GET /health` now reports the active state backend
-- Model metadata reports the active state backend
 
 ## [0.2.0] - 2026-09-09
 
 ### Added
 
 - Policy routing: `priority`, `round_robin`, `random`, and `cost`
-- Logical model pools through `MODEL_POOLS_JSON`
-- Per-model token pricing through `MODEL_PRICING_JSON`
-- In-memory token and USD usage accounting
-- Daily and monthly budget enforcement
-- Per-API-key sliding-window rate limiting
-- Provider retry policy
-- Provider circuit breaker with recovery window
-- `GET /v1/models`, `GET /v1/usage`, and `GET /v1/budgets`
-- Rich routing decision metadata including candidate order and attempts
+- Logical model pools
+- Per-model token pricing
+- Token and USD usage accounting
+- Daily/monthly budget enforcement
+- Sliding-window rate limiting
+- Provider retries and circuit breaker
 
 ## [0.1.0] - 2026-09-09
 
 ### Added
 
 - OpenAI-compatible `POST /v1/chat/completions`
-- OpenAI, Anthropic, Google Gemini, and local Mock provider adapters
-- `provider:model` routing and JSON-configured model aliases
-- Ordered fallback routing
-- `GET /health` and authenticated `GET /v1/providers`
+- OpenAI, Anthropic, Google Gemini, and Mock adapters
+- Model aliases and ordered fallback
 - API-key validation and request IDs
-- Docker and Docker Compose runtime
-- Pytest and Ruff CI checks
-- Traditional Chinese / English documentation
+- Docker runtime
+- Pytest and Ruff CI
