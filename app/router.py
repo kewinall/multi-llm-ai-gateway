@@ -1,7 +1,7 @@
 import random
+from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from math import inf
-from collections.abc import AsyncIterator
 from typing import Any
 
 from app.config import Settings
