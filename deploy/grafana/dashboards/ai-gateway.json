@@ -1,12 +1,19 @@
 {
-  "annotations": {"list": []},
+  "annotations": {
+    "list": []
+  },
   "editable": true,
   "graphTooltip": 1,
   "panels": [
     {
       "type": "stat",
       "title": "Request rate",
-      "gridPos": {"h": 6, "w": 6, "x": 0, "y": 0},
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 0,
+        "y": 0
+      },
       "targets": [
         {
           "expr": "sum(rate(llm_gateway_requests_total[5m]))",
@@ -18,7 +25,12 @@
     {
       "type": "stat",
       "title": "P95 latency",
-      "gridPos": {"h": 6, "w": 6, "x": 6, "y": 0},
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 6,
+        "y": 0
+      },
       "targets": [
         {
           "expr": "histogram_quantile(0.95, sum by (le) (rate(llm_gateway_request_duration_seconds_bucket[5m])))",
@@ -26,12 +38,22 @@
           "refId": "A"
         }
       ],
-      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []}
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      }
     },
     {
       "type": "stat",
       "title": "Estimated cost rate",
-      "gridPos": {"h": 6, "w": 6, "x": 12, "y": 0},
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 12,
+        "y": 0
+      },
       "targets": [
         {
           "expr": "sum(rate(llm_gateway_cost_usd_total[5m]))",
@@ -39,12 +61,22 @@
           "refId": "A"
         }
       ],
-      "fieldConfig": {"defaults": {"unit": "currencyUSD"}, "overrides": []}
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD"
+        },
+        "overrides": []
+      }
     },
     {
       "type": "stat",
       "title": "Rate-limit rejects",
-      "gridPos": {"h": 6, "w": 6, "x": 18, "y": 0},
+      "gridPos": {
+        "h": 6,
+        "w": 3,
+        "x": 18,
+        "y": 0
+      },
       "targets": [
         {
           "expr": "sum(increase(llm_gateway_rate_limited_total[1h]))",
@@ -56,7 +88,12 @@
     {
       "type": "timeseries",
       "title": "Tokens by type",
-      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 6},
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 6
+      },
       "targets": [
         {
           "expr": "sum by (type) (rate(llm_gateway_tokens_total[5m]))",
@@ -68,7 +105,12 @@
     {
       "type": "timeseries",
       "title": "Provider attempts",
-      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 6},
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 6
+      },
       "targets": [
         {
           "expr": "sum by (provider, status) (rate(llm_gateway_provider_attempts_total[5m]))",
@@ -80,7 +122,12 @@
     {
       "type": "timeseries",
       "title": "Requests by model",
-      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 14},
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 14
+      },
       "targets": [
         {
           "expr": "sum by (provider, model, status) (rate(llm_gateway_requests_total[5m]))",
@@ -92,7 +139,12 @@
     {
       "type": "timeseries",
       "title": "Cost by model",
-      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 14},
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 14
+      },
       "targets": [
         {
           "expr": "sum by (provider, model) (increase(llm_gateway_cost_usd_total[1h]))",
@@ -100,16 +152,47 @@
           "refId": "A"
         }
       ],
-      "fieldConfig": {"defaults": {"unit": "currencyUSD"}, "overrides": []}
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Policy rejects",
+      "gridPos": {
+        "h": 6,
+        "w": 3,
+        "x": 21,
+        "y": 0
+      },
+      "targets": [
+        {
+          "expr": "sum(increase(llm_gateway_policy_rejected_total[1h]))",
+          "legendFormat": "last hour",
+          "refId": "A"
+        }
+      ]
     }
   ],
   "refresh": "5s",
   "schemaVersion": 42,
-  "tags": ["ai", "llm", "gateway"],
-  "templating": {"list": []},
-  "time": {"from": "now-1h", "to": "now"},
+  "tags": [
+    "ai",
+    "llm",
+    "gateway"
+  ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
   "timezone": "browser",
   "title": "Multi-LLM AI Gateway",
   "uid": "multi-llm-ai-gateway",
-  "version": 1
+  "version": 2
 }
