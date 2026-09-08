@@ -1,0 +1,99 @@
+replicaCount: 2
+
+image:
+  repository: multi-llm-ai-gateway
+  tag: "0.4.0"
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8000
+
+existingSecret: multi-llm-ai-gateway-secrets
+
+config:
+  stateBackend: redis
+  redisPrefix: llm-gateway
+  routingPolicy: priority
+  rateLimitRequestsPerMinute: 60
+  providerRetryAttempts: 1
+  circuitFailureThreshold: 3
+  circuitRecoverySeconds: 30
+  otelServiceName: multi-llm-ai-gateway
+  otelExporterOtlpEndpoint: ""
+
+secretKeys:
+  gatewayApiKey: gateway-api-key
+  adminApiKey: admin-api-key
+  redisUrl: redis-url
+  openaiApiKey: openai-api-key
+  anthropicApiKey: anthropic-api-key
+  googleApiKey: google-api-key
+
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/path: /metrics
+  prometheus.io/port: "8000"
+
+podSecurityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop: ["ALL"]
+  readOnlyRootFilesystem: true
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: "1"
+    memory: 512Mi
+
+livenessProbe:
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 10
+  periodSeconds: 15
+
+readinessProbe:
+  httpGet:
+    path: /ready
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 10
+
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 6
+  targetCPUUtilizationPercentage: 70
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: ai-gateway.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
