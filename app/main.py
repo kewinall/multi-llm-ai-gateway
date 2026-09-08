@@ -5,9 +5,12 @@ from typing import Annotated
 from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
 from fastapi.responses import JSONResponse
 
+from app.admin import router as admin_router
+from app.admin_ui import admin_console
 from app.budget import BudgetManager
 from app.config import get_settings
 from app.errors import GatewayError
+from app.governance import GovernanceStore
 from app.models import ChatCompletionRequest
 from app.observability import (
     configure_tracing,
@@ -17,17 +20,16 @@ from app.observability import (
     timer_start,
     tracer,
 )
-from app.pricing import PricingCatalog
 from app.rate_limit import RateLimiter
 from app.resilience import CircuitBreaker
 from app.router import ModelRouter
-from app.security import require_api_key
+from app.security import Principal, require_api_key, require_operator
 from app.state import build_state_backend
 from app.usage import UsageStore
 
 settings = get_settings()
 state_backend = build_state_backend(settings)
-pricing = PricingCatalog(settings)
+governance = GovernanceStore(settings, state_backend)
 usage_store = UsageStore(state_backend)
 budget_manager = BudgetManager(settings, usage_store)
 rate_limiter = RateLimiter(state_backend, settings.rate_limit_requests_per_minute)
@@ -39,7 +41,7 @@ circuit_breaker = CircuitBreaker(
 router = ModelRouter(
     settings,
     state_backend=state_backend,
-    pricing=pricing,
+    governance=governance,
     circuit_breaker=circuit_breaker,
 )
 gateway_tracer = tracer(__name__)
@@ -53,14 +55,19 @@ async def lifespan(_app: FastAPI):
 
 app = FastAPI(
     title="Multi-LLM AI Gateway",
-    version="0.3.0",
+    version="0.4.0",
     description=(
-        "OpenAI-compatible multi-provider LLM gateway with distributed governance "
-        "and observability."
+        "OpenAI-compatible enterprise AI gateway with dynamic governance, "
+        "RBAC, distributed state, and observability."
     ),
     lifespan=lifespan,
 )
+app.state.settings = settings
+app.state.governance = governance
+app.state.usage_store = usage_store
+app.state.budget_manager = budget_manager
 configure_tracing(app, settings)
+app.include_router(admin_router)
 
 
 @app.middleware("http")
@@ -75,6 +82,11 @@ async def request_id_middleware(request: Request, call_next):
 @app.exception_handler(GatewayError)
 async def gateway_error_handler(_request: Request, exc: GatewayError):
     return JSONResponse(status_code=502, content={"detail": str(exc)})
+
+
+@app.get("/admin", include_in_schema=False)
+async def admin_ui():
+    return admin_console()
 
 
 @app.get("/health")
@@ -110,7 +122,7 @@ async def providers() -> dict[str, object]:
 
 @app.get("/v1/models", dependencies=[Depends(require_api_key)])
 async def models() -> dict[str, object]:
-    return router.model_catalog()
+    return await router.model_catalog()
 
 
 @app.get("/v1/usage", dependencies=[Depends(require_api_key)])
@@ -123,18 +135,37 @@ async def budgets() -> dict[str, object]:
     return await budget_manager.status()
 
 
+def _calculate_cost(
+    pricing: dict[str, dict[str, float]],
+    canonical_model: str,
+    prompt_tokens: int,
+    completion_tokens: int,
+) -> tuple[float, bool]:
+    price = pricing.get(canonical_model)
+    if price is None:
+        return 0.0, False
+    cost = (
+        prompt_tokens * float(price.get("input_per_million", 0.0))
+        + completion_tokens * float(price.get("output_per_million", 0.0))
+    ) / 1_000_000
+    return cost, True
+
+
 @app.post("/v1/chat/completions")
 async def chat_completions(
     payload: ChatCompletionRequest,
     request: Request,
     response: Response,
-    api_key: Annotated[str, Depends(require_api_key)],
+    principal: Annotated[Principal, Depends(require_operator)],
 ):
     started_at = timer_start()
     if payload.stream:
-        raise HTTPException(status_code=400, detail="Streaming is not supported in v0.3")
+        raise HTTPException(status_code=400, detail="Streaming is not supported in v0.4")
 
-    rate = await rate_limiter.check(api_key)
+    rate = await rate_limiter.check(
+        principal.id,
+        principal.rate_limit_requests_per_minute,
+    )
     response.headers["X-RateLimit-Limit"] = str(rate.limit)
     response.headers["X-RateLimit-Remaining"] = str(rate.remaining)
     if not rate.allowed:
@@ -158,6 +189,8 @@ async def chat_completions(
 
     with gateway_tracer.start_as_current_span("llm.gateway.route") as span:
         span.set_attribute("llm.requested_model", payload.model)
+        span.set_attribute("llm.client_id", principal.id)
+        span.set_attribute("llm.client_role", principal.role)
         try:
             result, route_metadata = await router.route(payload)
         except ValueError as exc:
@@ -167,7 +200,9 @@ async def chat_completions(
         prompt_tokens = int(raw_usage.get("prompt_tokens", 0))
         completion_tokens = int(raw_usage.get("completion_tokens", 0))
         canonical_model = f"{route_metadata['provider']}:{route_metadata['model']}"
-        cost_usd, pricing_known = pricing.calculate(
+        governance_snapshot = await governance.snapshot()
+        cost_usd, pricing_known = _calculate_cost(
+            governance_snapshot["pricing"],
             canonical_model,
             prompt_tokens,
             completion_tokens,
@@ -186,6 +221,11 @@ async def chat_completions(
         route_metadata["cost_usd"] = round(cost_usd, 8)
         route_metadata["pricing_known"] = pricing_known
         route_metadata["budget"] = await budget_manager.status()
+        route_metadata["client"] = {
+            "id": principal.id,
+            "name": principal.name,
+            "role": principal.role,
+        }
         result["gateway"] = route_metadata
 
         span.set_attribute("llm.selected_provider", str(route_metadata["provider"]))
