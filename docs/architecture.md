@@ -1,140 +1,185 @@
 # 架構設計 / Architecture
 
-## 目標 / Goal
+## v0.5 goal
 
-v0.4 在 v0.3 分散式 Gateway 基礎上加入 **management plane**：Runtime Governance、
-Managed API Clients、RBAC、Audit 與 Kubernetes/Helm deployment。
+v0.5 extends the management/data-plane architecture with enterprise identity, runtime request
+policy, SSE streaming, key rotation, and Kubernetes network/monitoring hardening.
 
-## Logical architecture
+## Request path
 
 ```text
-                    Management Plane
-                +------------------------+
-                | Admin Console / API    |
-                | alias / pool / price   |
-                | policy / clients / RBAC|
-                | audit                  |
-                +-----------+------------+
-                            |
-                     Governance Store
-                            |
-                  +---------+---------+
-                  |                   |
-               Memory               Redis
-                                    |
-                              shared replicas
-
-                    Data Plane
-Client -> Authentication / RBAC
-       -> Rate Limit
-       -> Budget
-       -> Effective Governance Snapshot
-       -> Model / Policy Router
-       -> Circuit Breaker / Retry / Fallback
-       -> Provider Adapter
-       -> Usage / Cost / Metrics / Trace
-       -> OpenAI-compatible Response
+                    Authentication
+          +-------------+-------------+
+          |                           |
+      X-API-Key                  Bearer JWT
+          |                           |
+ managed/bootstrap key          OIDC + JWKS
+          +-------------+-------------+
+                        |
+                     Principal
+               id / name / role / source
+                        |
+                        v
+                   Policy Engine
+                        |
+             +----------+----------+
+             |                     |
+          DENY 403                ALLOW
+                                   |
+                              Rate Limit
+                                   |
+                                Budget
+                                   |
+                         Governance Snapshot
+                                   |
+                              Model Router
+                      priority / RR / random / cost
+                                   |
+                         Circuit / retry / fallback
+                                   |
+                              Provider
+                                   |
+                    +--------------+--------------+
+                    |                             |
+                Buffered                         SSE
+                    |                             |
+                    +--------------+--------------+
+                                   |
+                            Usage / Cost
+                                   |
+                        Metrics / Trace / Audit
 ```
 
-## Authentication and RBAC
+## Identity
 
-A request resolves to a `Principal`.
+Supported identity sources:
 
-| Credential | Effective role |
-|---|---|
-| `ADMIN_API_KEY` | bootstrap admin |
-| `GATEWAY_API_KEY` | bootstrap operator |
-| Managed client key | configured viewer/operator/admin |
+- bootstrap `ADMIN_API_KEY`
+- bootstrap `GATEWAY_API_KEY`
+- managed hashed API client key
+- OIDC bearer JWT
 
-Managed API keys are generated once, returned once, then represented only by SHA-256 digest in the
-governance store.
+OIDC token validation uses configured JWKS and verifies issuer, audience, expiry, issue time, and
+subject. Role mapping converts the configured claim to viewer/operator/admin.
 
-### Role behavior
+## Policy Engine
 
-- `viewer`: read model/provider/usage/budget APIs
-- `operator`: viewer capabilities + Chat Completion
-- `admin`: operator capabilities + management APIs
-
-## Dynamic governance
-
-The effective configuration is:
+Policies are part of the same effective Governance Snapshot as aliases, pools, pricing, and routing
+settings.
 
 ```text
-Environment defaults
-       +
-Runtime governance overrides
-       =
-Effective snapshot
+Environment POLICIES_JSON
+          +
+Redis/memory policy overrides
+          =
+Effective policies
 ```
 
-Runtime overrides include:
+Policies are ordered by ascending priority. The first matching rule evaluates:
 
-- alias -> provider:model
-- model pool -> candidate list
-- model pricing
-- default routing policy
+- role
+- principal ID
+- requested model glob
+- streaming allowed/denied
+- maximum requested output tokens
+- allow/deny effect
 
-The router reads this snapshot per request. There is no process restart for a governance update.
+Default behavior remains allow for backward compatibility.
 
-With Redis backend, every replica sees the same governance state.
-
-## Distributed state
-
-Redis now holds both operational state and management-plane state:
+## Streaming architecture
 
 ```text
-rate limits
-round-robin cursor
-circuit breaker
+ChatCompletionRequest(stream=true)
+        |
+Policy / Rate / Budget
+        |
+Router.stream_route()
+        |
+BaseProvider.stream()
+   |           |
+ native       normalized buffered fallback
+   |
+OpenAI / Mock
+        |
+SSE chunk normalization
+        |
+Usage/cost finalization
+        |
+data: [DONE]
+```
+
+Native OpenAI streaming asks the upstream API to include usage. Mock streaming is deterministic and
+progressive for CI. Anthropic/Google currently inherit normalized buffered streaming from the common
+provider contract.
+
+## Distributed governance
+
+Redis stores:
+
+```text
+rate-limit windows
+round-robin state
+circuit state
 usage / cost
 budget counters
-recent usage
 dynamic aliases
-dynamic pools
-dynamic pricing
-dynamic routing settings
-managed API clients
+model pools
+pricing
+routing policy
+request policies
+managed client key digests
 audit events
 ```
 
-## Observability
+Key rotation atomically creates a new digest, deletes the old digest, and preserves the logical
+client ID.
 
-- Prometheus: `/metrics`
-- OpenTelemetry: inbound FastAPI, outbound HTTPX, route/provider spans
-- Grafana: provisioned AI Gateway dashboard
-- route spans include client id/role in v0.4
-
-## Kubernetes architecture
-
-The Helm chart defaults to two Gateway replicas sharing an external Redis backend.
+## Kubernetes
 
 ```text
-Ingress / Service
-       |
-   +---+---+
-   |       |
-Gateway  Gateway
-   |       |
-   +---+---+
-       |
-     Redis
+Ingress / Gateway API
+        |
+     Service
+        |
+ +------+------+ 
+ |             |
+Pod A         Pod B
+ |             |
+ +------+------+ 
+        |
+      Redis
+
+Optional:
+- NetworkPolicy
+- ServiceMonitor
+- HPA
+- Ingress
 ```
 
-Deployment controls include:
+Pod hardening:
 
-- liveness `/health`
-- readiness `/ready`
-- PodDisruptionBudget
-- resource requests/limits
-- non-root execution
+- non-root UID/GID 10001
 - RuntimeDefault seccomp
-- all Linux capabilities dropped
+- no privilege escalation
+- all capabilities dropped
 - read-only root filesystem
-- optional HPA
-- optional Ingress
-- external Kubernetes Secret contract
+- service account token automount disabled
+- resource limits
+- PDB
 
-## CI and release gate
+## Observability
+
+Prometheus includes:
+
+- request/token/cost/provider-attempt metrics
+- latency
+- rate-limit rejection
+- budget rejection
+- policy rejection
+
+OpenTelemetry continues to trace FastAPI, HTTPX, route and provider operations.
+
+## Release gate
 
 ```text
 Ruff
@@ -143,9 +188,10 @@ Redis integration
 Docker build
 Compose config
 Helm lint
-Helm template
-   |
-   +-- Security: secret scan rule + pip-audit
-   |
-   +-- Automatic semantic tag and GitHub Release
+Helm normal render
+Helm NetworkPolicy + ServiceMonitor render
+     |
+Security: secret rule + pip-audit
+     |
+semantic tag + GitHub Release
 ```
