@@ -2,22 +2,45 @@
 
 ## 目標 / Goal
 
-讓 Agent、RAG、Web 應用與批次工作只整合一種 Chat Completion API，而不需要直接依賴
-OpenAI、Anthropic 或 Google 的個別 API 格式。
-
-Expose one stable Chat Completion API so applications can switch providers without changing client
-integration code.
+讓 Agent、RAG、Web 應用與批次工作只整合一種 Chat Completion API，同時把模型選擇、
+fallback、成本、預算與 resilience 集中在 Gateway 控制。
 
 ## Request flow
 
 ```text
-1. Client sends OpenAI-style request
-2. Gateway validates X-API-Key
-3. ModelRouter resolves alias or provider:model
-4. Provider adapter transforms the request
-5. Upstream result is normalized to OpenAI-style response
-6. On provider failure, configured fallback candidates are tried
-7. Gateway route metadata and X-Request-ID are returned
+Client
+  |
+  v
+API key authentication
+  |
+  v
+Rate limiter ---------> 429 when exceeded
+  |
+  v
+Budget check ---------> 429 when exhausted
+  |
+  v
+Model pool + routing policy
+  |   priority / round_robin / random / cost
+  v
+Circuit breaker
+  |
+  v
+Provider retry
+  |
+  +------ failure ------> next candidate / fallback
+  |
+  v
+Provider adapter
+  |
+  v
+Normalized OpenAI-style response
+  |
+  v
+Token usage -> pricing -> usage store -> budget counters
+  |
+  v
+Response + routing/cost metadata + X-Request-ID
 ```
 
 ## Components
@@ -26,6 +49,11 @@ integration code.
 app/main.py
   |
   +-- security.py
+  +-- rate_limit.py
+  +-- budget.py
+  +-- usage.py
+  +-- pricing.py
+  +-- resilience.py
   |
   +-- router.py
         |
@@ -35,34 +63,63 @@ app/main.py
         +-- providers/mock.py
 ```
 
-## Design decisions
+## Routing layer
 
-### Provider abstraction
+### Alias
 
-Each adapter implements the same `BaseProvider` contract. Vendor-specific request/response formats
-remain outside the application-facing API.
+一個 stable name 對應一個實體模型，例如 `default -> mock:demo`。
 
-### Explicit model namespace
+### Pool
 
-`provider:model` prevents naming collisions and makes routing decisions auditable. Aliases allow
-stable logical names such as `default`, `fast`, or `quality`.
+一個 logical name 對應多個候選模型，例如 `balanced -> [OpenAI, Anthropic, Gemini]`。
+Policy 決定候選順序，provider failure 則依序嘗試後續模型。
 
-### Controlled fallback
+### Routing metadata
 
-Only expected gateway/provider errors trigger fallback. Unexpected programming errors propagate
-instead of being silently masked.
+每次成功回應都包含：
 
-### Mock provider
+- requested model
+- selected provider/model
+- routing policy
+- candidate order
+- 每次 provider attempt / retry 結果
+- fallback 是否發生
+- 本次估算成本與 pricing-known flag
+- request 完成後的 budget 狀態
 
-The local mock adapter gives CI and developers a deterministic, credential-free end-to-end path.
+## Governance layer
 
-## v0.1 limitations
+### Usage & pricing
 
-- Non-streaming requests only
-- No distributed rate limiting
-- No token/cost budget policy
-- No Redis state
-- No Prometheus/OpenTelemetry integration
-- Basic API-key authentication only
+Gateway 使用 normalized `usage.prompt_tokens` / `completion_tokens` 計算成本，並依
+provider:model 累積 token 與 USD 使用量。
 
-These are intentionally deferred to later roadmap versions.
+### Rate limit
+
+v0.2 採 per-API-key 60-second sliding window。
+
+### Budget
+
+支援 daily / monthly USD hard limit，檢查的是已累積實際成本。
+
+### Circuit breaker
+
+Provider 達到 failure threshold 後進入 open state；recovery window 後允許 probe，
+成功後回 closed。
+
+## API surface
+
+| Endpoint | Purpose |
+|---|---|
+| `POST /v1/chat/completions` | OpenAI-compatible chat request |
+| `GET /v1/providers` | Provider configuration + circuit state |
+| `GET /v1/models` | Alias, pools, pricing and default policy |
+| `GET /v1/usage` | Token / request / cost accounting |
+| `GET /v1/budgets` | Daily and monthly budget status |
+| `GET /health` | Service health |
+
+## v0.2 limitation / v0.3 boundary
+
+所有 runtime governance state 都是 process-local memory，因此 v0.2 適合單 instance、
+PoC、架構展示與 integration testing。v0.3 會將這些 state 移到 Redis，並加入 metrics、
+tracing 與分散式觀測能力。
