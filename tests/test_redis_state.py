@@ -3,6 +3,8 @@ import uuid
 
 import pytest
 
+from app.config import Settings
+from app.governance import GovernanceStore
 from app.state import RedisStateBackend
 
 
@@ -53,6 +55,32 @@ async def test_redis_backend_shares_state_across_clients() -> None:
 
         await second.circuit_success("provider")
         assert (await first.circuit_status("provider", 60))["state"] == "closed"
+
+        settings = Settings(
+            model_aliases_json='{"default":"mock:demo"}',
+            model_pools_json="{}",
+        )
+        first_governance = GovernanceStore(settings, first)
+        second_governance = GovernanceStore(settings, second)
+
+        await first_governance.set_alias("managed", "mock:redis", "test")
+        shared = await second_governance.snapshot()
+        assert shared["aliases"]["managed"] == "mock:redis"
+        assert shared["governance_distributed"] is True
+
+        created = await first_governance.create_client(
+            name="redis-client",
+            role="operator",
+            actor="test",
+            rate_limit_requests_per_minute=9,
+        )
+        authenticated = await second_governance.authenticate_client(created["api_key"])
+        assert authenticated is not None
+        assert authenticated["name"] == "redis-client"
+        assert authenticated["rate_limit_requests_per_minute"] == 9
+
+        audit = await second_governance.audit_events()
+        assert any(event["resource"] == "alias:managed" for event in audit)
     finally:
         await first.reset()
         await first.close()
