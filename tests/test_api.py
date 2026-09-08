@@ -4,7 +4,7 @@ import json
 import pytest
 from fastapi.testclient import TestClient
 
-from app.main import app, governance, state_backend
+from app.main import app, governance, identity, state_backend
 
 client = TestClient(app)
 AUTH = {"X-API-Key": "dev-gateway-key"}
@@ -130,3 +130,29 @@ def test_streaming_returns_openai_compatible_sse_and_records_usage() -> None:
     usage = client.get("/v1/usage", headers=AUTH).json()
     assert usage["totals"]["requests"] == 1
     assert usage["totals"]["total_tokens"] > 0
+
+
+def test_oidc_bearer_principal_can_call_chat(monkeypatch) -> None:
+    async def authenticate(_token: str) -> dict[str, object]:
+        return {
+            "sub": "oidc-user-1",
+            "preferred_username": "oidc-operator",
+            "roles": ["operator"],
+        }
+
+    monkeypatch.setattr(identity, "authenticate", authenticate)
+
+    response = client.post(
+        "/v1/chat/completions",
+        headers={"Authorization": "Bearer test-token"},
+        json={
+            "model": "mock:demo",
+            "messages": [{"role": "user", "content": "oidc"}],
+        },
+    )
+    assert response.status_code == 200
+    principal = response.json()["gateway"]["client"]
+    assert principal["id"] == "oidc:oidc-user-1"
+    assert principal["name"] == "oidc-operator"
+    assert principal["role"] == "operator"
+    assert principal["source"] == "oidc"
