@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "multi-llm-ai-gateway"
-version = "0.1.0"
-description = "OpenAI-compatible multi-provider LLM gateway with routing and fallback."
+version = "0.2.0"
+description = "OpenAI-compatible multi-provider LLM gateway with routing and governance."
 readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "MIT" }
