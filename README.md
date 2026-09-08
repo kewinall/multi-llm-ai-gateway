@@ -3,64 +3,77 @@
 > 企業級多模型 AI Gateway 範例 / Enterprise multi-provider AI gateway reference implementation.
 
 An **OpenAI-compatible Enterprise AI Gateway** that decouples applications from LLM vendors and
-centralizes routing, resilience, cost governance, distributed state, observability, RBAC, and
-runtime model governance.
+centralizes routing, resilience, cost governance, streaming, enterprise identity, runtime policy,
+distributed state, observability, and Kubernetes deployment.
 
-## v0.4 Features
+## v0.5 Features
 
 - **Unified API**: `POST /v1/chat/completions`
+- **OpenAI-compatible SSE streaming**
+- **Native progressive streaming** for Mock and OpenAI
+- **Normalized stream contract** for Anthropic and Google Gemini
 - **Providers**: OpenAI, Anthropic, Google Gemini, Mock
 - **Routing**: priority, round-robin, random, cost-aware
 - **Fallback, retry, circuit breaker**
 - **Token / cost accounting and daily/monthly budgets**
-- **Per-client rate limiting**
-- **Redis distributed state and governance**
-- **Dynamic aliases, model pools, pricing, and routing policy without restart**
-- **Managed API clients with hashed keys**
+- **Redis distributed state and runtime governance**
+- **Dynamic aliases, pools, pricing, routing policy**
+- **Managed API clients with one-time plaintext keys**
+- **API key rotation**
 - **RBAC**: viewer / operator / admin
-- **Audit log** for governance changes
-- **Embedded Admin Console** at `/admin`
+- **Optional OIDC/JWT bearer authentication**
+- **JWKS signature, issuer, audience, expiry validation**
+- **Runtime Policy Engine**
+- **Policy match by role, client, model glob, streaming, max_tokens**
+- **Governance audit log**
+- **Embedded Admin Console**
 - **Prometheus + OpenTelemetry + Grafana**
-- **Helm chart** with multi-replica production defaults
+- **Policy rejection metric**
+- **Helm chart with hardened pod defaults**
+- **Optional NetworkPolicy**
+- **Optional Prometheus ServiceMonitor**
 - **CI validation**: Ruff, Pytest, Redis integration, Docker, Compose, Helm
-- **Gated automatic GitHub Releases**
+- **Gated semantic GitHub Release workflow**
 
 ## Architecture
 
 ```text
-                  +---------------------------+
-                  | Client / Agent / RAG      |
-                  +-------------+-------------+
-                                |
-                       API Key + RBAC
-                                |
-                                v
-                  +---------------------------+
-                  | Multi-LLM AI Gateway      |
-                  |                           |
-                  | Rate Limit -> Budget      |
-                  |        |                  |
-                  | Dynamic Governance        |
-                  |        |                  |
-                  | Model / Policy Router     |
-                  +----+------+-------+-------+
-                       |      |       |
-                    OpenAI Anthropic Gemini
-                                |
-                     Usage / Cost / Trace
-                                |
-             +------------------+------------------+
-             |                  |                  |
-          Redis             Prometheus          OTEL
-   state + governance         /metrics          traces
-             |                  |
-       multi replicas          Grafana
+                    Enterprise Identity
+                 API Key         OIDC JWT
+                    \             /
+                     +-----------+
+                          |
+                       Principal
+                 viewer/operator/admin
+                          |
+                          v
+Client / RAG / Agent -> Policy Engine
+                          |
+                     Rate / Budget
+                          |
+                  Dynamic Governance
+                          |
+                  Model Policy Router
+                   /      |       \
+               OpenAI  Anthropic  Gemini
+                   \      |       /
+                    Stream / Response
+                          |
+                Usage / Cost / Audit
+                          |
+             +------------+------------+
+             |            |            |
+           Redis      Prometheus      OTEL
+             |            |            |
+       multi replicas   Grafana     Collector
 
-Admin Console /admin
-      |
-      +-- aliases / pools / pricing / policy
-      +-- API clients / RBAC
-      +-- audit log
+Admin Console
+  |- aliases / pools / pricing
+  |- routing policy
+  |- request policies
+  |- API clients / RBAC
+  |- key rotation
+  '- audit
 ```
 
 ## Quick start
@@ -73,7 +86,7 @@ pip install -e ".[dev]"
 uvicorn app.main:app --reload
 ```
 
-Default local credentials:
+Default local bootstrap credentials:
 
 ```text
 X-API-Key:   dev-gateway-key
@@ -90,6 +103,86 @@ Open:
 | Readiness | http://localhost:8000/ready |
 | Metrics | http://localhost:8000/metrics |
 
+## Streaming
+
+```bash
+curl -N http://localhost:8000/v1/chat/completions \
+  -H 'Content-Type: application/json' \
+  -H 'X-API-Key: dev-gateway-key' \
+  -d '{
+    "model":"mock:demo",
+    "stream":true,
+    "messages":[{"role":"user","content":"Hello stream"}]
+  }'
+```
+
+The response uses `text/event-stream` and terminates with:
+
+```text
+data: [DONE]
+```
+
+## OIDC / JWT
+
+OIDC is optional and does not break API-key authentication.
+
+```dotenv
+OIDC_ISSUER=https://id.example.com/
+OIDC_AUDIENCE=ai-gateway
+OIDC_JWKS_URL=https://id.example.com/.well-known/jwks.json
+OIDC_ROLE_CLAIM=roles
+OIDC_DEFAULT_ROLE=viewer
+```
+
+Then clients may use:
+
+```http
+Authorization: Bearer <signed-jwt>
+```
+
+The Gateway validates the JWT signature against JWKS plus issuer, audience, `exp`, `iat`, and
+`sub`.
+
+## Policy Engine
+
+Example: deny streaming for operator requests to mock models.
+
+```bash
+curl -X PUT http://localhost:8000/admin/api/policies/no-stream \
+  -H 'X-Admin-Key: dev-admin-key' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "priority":10,
+    "effect":"allow",
+    "roles":["operator"],
+    "models":["mock:*"],
+    "allow_stream":false
+  }'
+```
+
+Policy fields:
+
+```text
+enabled
+priority
+effect
+roles
+clients
+models
+allow_stream
+max_tokens
+```
+
+Rules are evaluated by ascending priority with first-match behavior.
+
+## API key rotation
+
+```http
+POST /admin/api/clients/{client_id}/rotate-key
+```
+
+The new plaintext key is returned once and the previous key is immediately invalidated.
+
 ## Docker Compose stack
 
 ```bash
@@ -99,66 +192,57 @@ docker compose up --build
 
 Includes Gateway, Redis, Prometheus, Grafana, and OpenTelemetry Collector.
 
-## RBAC
-
-| Role | Read APIs | Chat Completion | Admin APIs |
-|---|---:|---:|---:|
-| viewer | Yes | No | No |
-| operator | Yes | Yes | No |
-| admin | Yes | Yes | Yes |
-
-The legacy `GATEWAY_API_KEY` remains a bootstrap `operator`.
-`ADMIN_API_KEY` is a bootstrap `admin`.
-
-Managed client keys are returned only at creation time. Only a SHA-256 digest is stored in the
-governance backend.
-
-## Dynamic governance
-
-The Admin API can update aliases, pools, pricing, and the default routing policy at runtime.
-With Redis active, the changes are visible to every Gateway replica immediately.
-
-Example:
-
-```bash
-curl -X PUT http://localhost:8000/admin/api/aliases/quality \
-  -H 'X-Admin-Key: dev-admin-key' \
-  -H 'Content-Type: application/json' \
-  -d '{"target":"mock:quality"}'
-```
-
-No application restart is required.
-
 ## Enterprise Kubernetes deployment
 
-A Helm chart is included at:
+Helm chart:
 
 ```text
 deploy/helm/multi-llm-ai-gateway
 ```
 
-Validate and render it:
+Validation:
 
 ```bash
 helm lint deploy/helm/multi-llm-ai-gateway
 helm template ai-gateway deploy/helm/multi-llm-ai-gateway
+
+helm template ai-gateway-hardened deploy/helm/multi-llm-ai-gateway \
+  --set networkPolicy.enabled=true \
+  --set serviceMonitor.enabled=true
 ```
 
-The chart provides 2 replicas by default, health/readiness probes, PodDisruptionBudget, hardened
-pod/container security contexts, resource limits, Prometheus annotations, optional HPA, and
-optional Ingress.
+Chart capabilities include:
+
+- two replicas by default
+- liveness/readiness
+- PodDisruptionBudget
+- non-root fixed UID/GID
+- RuntimeDefault seccomp
+- no privilege escalation
+- all Linux capabilities dropped
+- read-only root filesystem
+- service account token disabled
+- resource requests/limits
+- optional HPA
+- optional Ingress
+- optional NetworkPolicy
+- optional Prometheus ServiceMonitor
+- external Secret contract
 
 ## API surface
 
 | Endpoint | Purpose |
 |---|---|
-| `POST /v1/chat/completions` | OpenAI-compatible model invocation |
-| `GET /v1/providers` | Provider + circuit status |
-| `GET /v1/models` | Effective aliases, pools, pricing, policy |
+| `POST /v1/chat/completions` | Buffered or SSE Chat Completion |
+| `GET /v1/providers` | Provider and circuit status |
+| `GET /v1/models` | Effective governance snapshot |
 | `GET /v1/usage` | Request/token/cost accounting |
 | `GET /v1/budgets` | Budget status |
 | `GET /admin` | Admin Console |
-| `/admin/api/*` | Runtime governance and client management |
+| `PUT /admin/api/policies/{name}` | Create/update request policy |
+| `DELETE /admin/api/policies/{name}` | Delete request policy |
+| `POST /admin/api/clients/{id}/rotate-key` | Rotate managed client key |
+| `GET /admin/api/audit` | Governance audit |
 | `GET /health` | Liveness |
 | `GET /ready` | Backend readiness |
 | `GET /metrics` | Prometheus metrics |
@@ -167,6 +251,8 @@ optional Ingress.
 
 - [Architecture](docs/architecture.md)
 - [Configuration](docs/configuration.md)
+- [Streaming](docs/streaming.md)
+- [Enterprise Identity & Policy](docs/identity-policy.md)
 - [Admin Console](docs/admin-console.md)
 - [Enterprise Deployment](docs/enterprise-deployment.md)
 - [Distributed State](docs/distributed-state.md)
@@ -178,34 +264,36 @@ optional Ingress.
 ```text
 Version change
    |
-   +-- Quality:
-   |     Ruff
-   |     Pytest
-   |     Redis integration
-   |     Docker build
-   |     Docker Compose config
-   |     Helm lint + template
+   +-- Quality
+   |    |- Ruff
+   |    |- Pytest
+   |    |- Redis integration
+   |    |- Docker build
+   |    |- Compose config
+   |    |- Helm lint
+   |    '- Helm normal + hardening template render
    |
-   +-- Security:
-   |     Secret check
-   |     pip-audit
+   +-- Security
+   |    |- tracked secret check
+   |    '- pip-audit
    |
-   +-- Git tag + GitHub Release
+   '-- semantic Git tag + GitHub Release
 ```
 
 ## Roadmap
 
-- **v0.1** — unified chat API, adapters, routing, fallback
-- **v0.2** — routing policies, retries, budgets, cost accounting, rate limits
+- **v0.1** — unified multi-provider API
+- **v0.2** — routing, fallback, retry, budgets, cost, rate limits
 - **v0.3** — Redis distributed state, Prometheus, OpenTelemetry, Grafana
-- **v0.4** — Admin Console, dynamic governance, client RBAC, audit, Helm deployment
-- **v0.5** — streaming, richer enterprise identity/policy integration, deployment hardening
+- **v0.4** — Admin Console, runtime governance, client RBAC, Helm
+- **v0.5** — streaming, OIDC/JWT, request policies, key rotation, Kubernetes hardening
+- **v0.6** — deeper provider-native streaming, external policy/identity integration, HA operations
 
 ## 專案定位 / Project positioning
 
-此專案展示企業 AI Platform 如何把 RAG、Agent、內部應用與 LLM Provider 解耦，集中處理
-**Model Routing、Resilience、Cost Governance、Distributed State、Observability、RBAC、
-Runtime Governance 與 Kubernetes Deployment**。
+此專案展示企業 AI Platform 如何集中處理 **Model Routing、Streaming、Resilience、
+Cost Governance、OIDC/JWT、RBAC、Policy Enforcement、Distributed Governance、
+Observability 與 Kubernetes Production Deployment**。
 
 ## License
 
