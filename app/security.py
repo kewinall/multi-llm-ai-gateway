@@ -26,6 +26,7 @@ def _matches(provided: str | None, expected: str | None) -> bool:
 async def _authenticate(
     request: Request,
     api_key: str | None,
+    authorization: str | None = None,
 ) -> Principal | None:
     settings = request.app.state.settings
     if _matches(api_key, settings.admin_api_key):
@@ -57,7 +58,36 @@ async def _authenticate(
                 ),
             )
 
-    if not settings.gateway_api_key and not settings.admin_api_key and api_key is None:
+    if authorization and authorization.lower().startswith("bearer "):
+        token = authorization.split(" ", 1)[1].strip()
+        if token:
+            try:
+                claims = await request.app.state.identity.authenticate(token)
+            except Exception:
+                return None
+            subject = str(claims.get("sub", ""))
+            if subject:
+                name = str(
+                    claims.get(
+                        settings.oidc_name_claim,
+                        claims.get("name", subject),
+                    )
+                )
+                role = request.app.state.identity.role_from_claims(claims)
+                return Principal(
+                    id=f"oidc:{subject}",
+                    name=name,
+                    role=role,
+                    source="oidc",
+                )
+
+    if (
+        not settings.gateway_api_key
+        and not settings.admin_api_key
+        and not request.app.state.identity.enabled
+        and api_key is None
+        and authorization is None
+    ):
         return Principal(
             id="anonymous",
             name="anonymous",
@@ -70,12 +100,13 @@ async def _authenticate(
 async def require_api_key(
     request: Request,
     x_api_key: Annotated[str | None, Header(alias="X-API-Key")] = None,
+    authorization: Annotated[str | None, Header(alias="Authorization")] = None,
 ) -> Principal:
-    principal = await _authenticate(request, x_api_key)
+    principal = await _authenticate(request, x_api_key, authorization)
     if principal is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or missing API key",
+            detail="Invalid or missing authentication credential",
         )
     return principal
 
@@ -95,6 +126,7 @@ async def require_admin(
     request: Request,
     x_admin_key: Annotated[str | None, Header(alias="X-Admin-Key")] = None,
     x_api_key: Annotated[str | None, Header(alias="X-API-Key")] = None,
+    authorization: Annotated[str | None, Header(alias="Authorization")] = None,
 ) -> Principal:
     settings = request.app.state.settings
     if _matches(x_admin_key, settings.admin_api_key):
@@ -105,7 +137,7 @@ async def require_admin(
             source="admin_api_key",
         )
 
-    principal = await _authenticate(request, x_api_key)
+    principal = await _authenticate(request, x_api_key, authorization)
     if principal is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
