@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-multi-llm-ai-gateway
+  labels:
+    app.kubernetes.io/name: multi-llm-ai-gateway
+    app.kubernetes.io/instance: {{ .Release.Name }}
+data:
+  STATE_BACKEND: {{ .Values.config.stateBackend | quote }}
+  REDIS_PREFIX: {{ .Values.config.redisPrefix | quote }}
+  ROUTING_POLICY: {{ .Values.config.routingPolicy | quote }}
+  RATE_LIMIT_REQUESTS_PER_MINUTE: {{ .Values.config.rateLimitRequestsPerMinute | quote }}
+  PROVIDER_RETRY_ATTEMPTS: {{ .Values.config.providerRetryAttempts | quote }}
+  CIRCUIT_FAILURE_THRESHOLD: {{ .Values.config.circuitFailureThreshold | quote }}
+  CIRCUIT_RECOVERY_SECONDS: {{ .Values.config.circuitRecoverySeconds | quote }}
+  OTEL_SERVICE_NAME: {{ .Values.config.otelServiceName | quote }}
+  OTEL_EXPORTER_OTLP_ENDPOINT: {{ .Values.config.otelExporterOtlpEndpoint | quote }}
