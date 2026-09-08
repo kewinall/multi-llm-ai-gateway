@@ -3,7 +3,7 @@ import asyncio
 import pytest
 from fastapi.testclient import TestClient
 
-from app.main import app, state_backend
+from app.main import app, governance, state_backend
 
 client = TestClient(app)
 AUTH = {"X-API-Key": "dev-gateway-key"}
@@ -12,13 +12,14 @@ AUTH = {"X-API-Key": "dev-gateway-key"}
 @pytest.fixture(autouse=True)
 def reset_runtime_state() -> None:
     asyncio.run(state_backend.reset())
+    asyncio.run(governance.reset())
 
 
 def test_health_and_readiness() -> None:
     health = client.get("/health")
     assert health.status_code == 200
     assert health.json()["status"] == "ok"
-    assert health.json()["version"] == "0.3.0"
+    assert health.json()["version"] == "0.4.0"
     assert health.json()["state_backend"] == "memory"
     assert health.headers["X-Request-ID"]
 
@@ -97,7 +98,7 @@ def test_budget_status_endpoint() -> None:
     assert response.json()["monthly"]["exhausted"] is False
 
 
-def test_streaming_is_rejected_in_v03() -> None:
+def test_streaming_is_rejected_in_v04() -> None:
     response = client.post(
         "/v1/chat/completions",
         headers=AUTH,
