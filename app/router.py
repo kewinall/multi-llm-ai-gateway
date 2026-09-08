@@ -1,12 +1,13 @@
 import random
 from dataclasses import dataclass
+from math import inf
 from typing import Any
 
 from app.config import Settings
 from app.errors import GatewayError, ProviderRequestError
+from app.governance import GovernanceStore
 from app.models import ChatCompletionRequest
 from app.observability import tracer
-from app.pricing import PricingCatalog
 from app.providers import AnthropicProvider, GoogleProvider, MockProvider, OpenAIProvider
 from app.providers.base import BaseProvider
 from app.resilience import CircuitBreaker
@@ -25,12 +26,12 @@ class ModelRouter:
         self,
         settings: Settings,
         state_backend: StateBackend,
-        pricing: PricingCatalog | None = None,
+        governance: GovernanceStore | None = None,
         circuit_breaker: CircuitBreaker | None = None,
     ) -> None:
         self.settings = settings
         self.state_backend = state_backend
-        self.pricing = pricing or PricingCatalog(settings)
+        self.governance = governance or GovernanceStore(settings, state_backend)
         self.circuit_breaker = circuit_breaker or CircuitBreaker(
             state_backend,
             failure_threshold=settings.circuit_failure_threshold,
@@ -44,8 +45,9 @@ class ModelRouter:
         }
         self._tracer = tracer(__name__)
 
-    def resolve(self, model_name: str) -> RouteTarget:
-        canonical = self.settings.model_aliases.get(model_name, model_name)
+    @staticmethod
+    def _resolve(model_name: str, aliases: dict[str, str]) -> RouteTarget:
+        canonical = aliases.get(model_name, model_name)
         if ":" not in canonical:
             raise ValueError(
                 f"Model '{model_name}' must be an alias or use provider:model format"
@@ -54,6 +56,10 @@ class ModelRouter:
         if not provider or not model:
             raise ValueError(f"Invalid model target '{canonical}'")
         return RouteTarget(provider=provider, model=model, canonical=canonical)
+
+    async def resolve(self, model_name: str) -> RouteTarget:
+        snapshot = await self.governance.snapshot()
+        return self._resolve(model_name, snapshot["aliases"])
 
     async def provider_status(self) -> list[dict[str, Any]]:
         rows: list[dict[str, Any]] = []
@@ -67,20 +73,22 @@ class ModelRouter:
             )
         return rows
 
-    def model_catalog(self) -> dict[str, Any]:
+    async def model_catalog(self) -> dict[str, Any]:
+        snapshot = await self.governance.snapshot()
         return {
-            "aliases": self.settings.model_aliases,
-            "pools": self.settings.model_pools,
-            "pricing": self.pricing.as_dict(),
-            "default_routing_policy": self.settings.routing_policy,
-            "state_backend": self.state_backend.name,
+            **snapshot,
+            "default_routing_policy": snapshot["routing_policy"],
         }
 
-    def _dedupe_targets(self, candidates: list[str]) -> list[RouteTarget]:
+    def _dedupe_targets(
+        self,
+        candidates: list[str],
+        aliases: dict[str, str],
+    ) -> list[RouteTarget]:
         seen: set[str] = set()
         targets: list[RouteTarget] = []
         for candidate in candidates:
-            target = self.resolve(candidate)
+            target = self._resolve(candidate, aliases)
             if target.canonical in seen:
                 continue
             seen.add(target.canonical)
@@ -97,16 +105,29 @@ class ModelRouter:
         cursor = await self.state_backend.round_robin_index(key, len(targets))
         return targets[cursor:] + targets[:cursor]
 
+    @staticmethod
+    def _cost_score(
+        canonical_model: str,
+        pricing: dict[str, dict[str, float]],
+    ) -> float:
+        price = pricing.get(canonical_model)
+        if price is None:
+            return inf
+        return float(price.get("input_per_million", 0.0)) + float(
+            price.get("output_per_million", 0.0)
+        )
+
     async def candidates(
         self,
         request: ChatCompletionRequest,
-    ) -> tuple[str, list[RouteTarget]]:
-        configured_pool = self.settings.model_pools.get(request.model)
+    ) -> tuple[str, list[RouteTarget], dict[str, Any]]:
+        snapshot = await self.governance.snapshot()
+        configured_pool = snapshot["pools"].get(request.model)
         candidates = list(configured_pool) if configured_pool else [request.model]
         candidates.extend(self.settings.fallback_models)
-        targets = self._dedupe_targets(candidates)
+        targets = self._dedupe_targets(candidates, snapshot["aliases"])
 
-        policy = request.routing_policy or self.settings.routing_policy
+        policy = request.routing_policy or snapshot["routing_policy"]
         if policy == "priority":
             pass
         elif policy == "round_robin":
@@ -117,18 +138,21 @@ class ModelRouter:
         elif policy == "cost":
             targets = sorted(
                 targets,
-                key=lambda target: self.pricing.routing_cost_score(target.canonical),
+                key=lambda target: self._cost_score(
+                    target.canonical,
+                    snapshot["pricing"],
+                ),
             )
         else:
             raise ValueError(f"Unsupported routing policy '{policy}'")
 
-        return policy, targets
+        return policy, targets, snapshot
 
     async def route(
         self,
         request: ChatCompletionRequest,
     ) -> tuple[dict[str, Any], dict[str, Any]]:
-        policy, targets = await self.candidates(request)
+        policy, targets, snapshot = await self.candidates(request)
         attempts: list[dict[str, Any]] = []
         retry_limit = max(self.settings.provider_retry_attempts, 0)
 
@@ -181,6 +205,9 @@ class ModelRouter:
                             "attempts": attempts,
                             "fallback_used": target_index > 0,
                             "state_backend": self.state_backend.name,
+                            "governance_distributed": snapshot[
+                                "governance_distributed"
+                            ],
                         }
                         return result, route_metadata
                     except GatewayError as exc:
