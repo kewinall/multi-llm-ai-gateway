@@ -2,72 +2,82 @@
 
 All notable changes to this project are documented here.
 
+## [0.5.0] - 2026-09-09
+
+### Added
+
+- OpenAI-compatible SSE streaming on `POST /v1/chat/completions`
+- Native progressive Mock streaming
+- Native OpenAI upstream SSE normalization
+- Common provider stream contract with buffered normalization fallback
+- Optional OIDC/JWT bearer authentication
+- JWKS-backed JWT signature validation
+- Issuer, audience, `exp`, `iat`, and `sub` validation
+- Configurable OIDC role/name claims
+- Request Policy Engine
+- Policy matching by role, principal ID, model glob, streaming mode, and max tokens
+- Runtime policy CRUD through Admin API
+- Redis-backed policies shared across replicas
+- Managed client API-key rotation
+- Immediate invalidation of previous API key after rotation
+- Rotation audit events
+- Policy rejection Prometheus metric
+- Request Policy management in Admin Console
+- API key rotation action in Admin Console
+- Optional Helm NetworkPolicy
+- Optional Prometheus Operator ServiceMonitor
+- Hardened fixed non-root UID/GID
+- Disabled service account token automount
+- Helm CI rendering for optional hardening resources
+- OIDC/JWT validation tests
+- FastAPI bearer-auth integration test
+- Redis distributed policy and rotation integration tests
+- SSE chunk reconstruction and post-stream usage accounting test
+
+### Changed
+
+- Chat requests now pass through Policy Engine before rate/budget/routing
+- Chat metadata includes authentication source
+- Streaming requests use the same RBAC, policy, rate, budget, circuit, usage, and cost governance
+- Helm image/app version updated to 0.5.0
+
 ## [0.4.0] - 2026-09-09
 
 ### Added
 
-- Embedded Admin Console at `GET /admin`
-- Runtime Admin API for aliases, pools, pricing, routing policy, clients, and audit events
-- Dynamic governance store for memory and Redis backends
-- Redis-backed governance shared across Gateway replicas
-- Managed API client creation, update, disable, and deletion
-- API keys generated with `llmgw_` prefix and stored as SHA-256 digests only
-- RBAC roles: `viewer`, `operator`, and `admin`
-- Bootstrap `ADMIN_API_KEY` administrator credential
-- Backward-compatible `GATEWAY_API_KEY` bootstrap operator
-- Per-client requests-per-minute override
-- Governance audit log
-- Dynamic cost routing and pricing without application restart
-- Helm chart for Kubernetes deployment
-- Default two-replica deployment
-- Liveness/readiness probes, PodDisruptionBudget, hardened security context, and resource limits
-- Optional HPA and Ingress
-- Helm lint/template validation in CI and Release quality gates
-- Redis integration coverage for shared governance, managed clients, and audit state
-
-### Changed
-
-- Router reads the effective governance snapshot at request time
-- Cost calculation uses dynamically governed pricing
-- Chat response includes authenticated client identity metadata
-- OpenTelemetry route span records client id and role
+- Embedded Admin Console
+- Dynamic Redis-backed runtime governance
+- Managed API clients
+- viewer/operator/admin RBAC
+- Per-client rate limits
+- Audit log
+- Helm/Kubernetes deployment
 
 ## [0.3.0] - 2026-09-09
 
 ### Added
 
-- Pluggable `memory` / `redis` state backend
-- Redis-backed distributed sliding-window rate limiting
-- Redis-backed round-robin cursor shared across Gateway replicas
-- Redis-backed provider circuit-breaker state
-- Redis-backed request/token/cost accounting
-- Redis-backed daily/monthly budget counters
-- Redis readiness checks through `GET /ready`
-- Prometheus metrics through `GET /metrics`
-- OpenTelemetry FastAPI and HTTPX instrumentation
-- Docker Compose observability stack with Redis, Prometheus, Grafana, and OTel Collector
-- Automatic semantic Git tag and GitHub Release workflow
-- Release security gate with secret checks and `pip-audit`
+- Redis distributed runtime state
+- Prometheus metrics
+- OpenTelemetry tracing
+- Grafana provisioning
+- Automatic semantic GitHub Releases
 
 ## [0.2.0] - 2026-09-09
 
 ### Added
 
-- Policy routing: `priority`, `round_robin`, `random`, and `cost`
-- Logical model pools
-- Per-model token pricing
-- Token and USD usage accounting
-- Daily/monthly budget enforcement
-- Sliding-window rate limiting
-- Provider retries and circuit breaker
+- Routing policies
+- Model pools
+- Pricing
+- Retry/fallback/circuit breaker
+- Budgets and rate limiting
 
 ## [0.1.0] - 2026-09-09
 
 ### Added
 
-- OpenAI-compatible `POST /v1/chat/completions`
-- OpenAI, Anthropic, Google Gemini, and Mock adapters
-- Model aliases and ordered fallback
-- API-key validation and request IDs
-- Docker runtime
-- Pytest and Ruff CI
+- OpenAI-compatible Chat Completion API
+- OpenAI, Anthropic, Google Gemini, and Mock providers
+- Alias/fallback routing
+- Docker and CI
