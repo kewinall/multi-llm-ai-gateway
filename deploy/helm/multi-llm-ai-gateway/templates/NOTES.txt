@@ -1,0 +1,12 @@
+Multi-LLM AI Gateway has been rendered.
+
+Create the referenced Secret before installation:
+
+  kubectl create secret generic {{ .Values.existingSecret }} \
+    --from-literal={{ .Values.secretKeys.gatewayApiKey }}='<gateway-api-key>' \
+    --from-literal={{ .Values.secretKeys.adminApiKey }}='<admin-api-key>' \
+    --from-literal={{ .Values.secretKeys.redisUrl }}='redis://redis:6379/0'
+
+Then inspect:
+
+  kubectl get pods -l app.kubernetes.io/instance={{ .Release.Name }}
