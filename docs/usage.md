@@ -1,6 +1,6 @@
 # 使用範例 / Usage
 
-## Chat Completion
+## Buffered Chat Completion
 
 ```bash
 curl http://localhost:8000/v1/chat/completions \
@@ -12,19 +12,35 @@ curl http://localhost:8000/v1/chat/completions \
   }'
 ```
 
-## Admin Console
+## SSE Streaming
 
-Open:
-
-```text
-http://localhost:8000/admin
+```bash
+curl -N http://localhost:8000/v1/chat/completions \
+  -H 'Content-Type: application/json' \
+  -H 'X-API-Key: dev-gateway-key' \
+  -d '{
+    "model": "mock:demo",
+    "stream": true,
+    "messages": [{"role": "user", "content": "Hello stream"}]
+  }'
 ```
 
-Development Admin Key:
+Response terminates with:
 
 ```text
-dev-admin-key
+data: [DONE]
 ```
+
+## OIDC bearer request
+
+After OIDC configuration:
+
+```bash
+curl http://localhost:8000/v1/models \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+Mapped operator/admin identities may invoke Chat Completion.
 
 ## Create a managed client
 
@@ -39,13 +55,45 @@ curl -X POST http://localhost:8000/admin/api/clients \
   }'
 ```
 
-The response contains `api_key` once. Save it securely.
+The `api_key` field is shown once.
 
-Use it:
+## Rotate client key
 
 ```bash
-curl http://localhost:8000/v1/models \
-  -H 'X-API-Key: llmgw_<generated-key>'
+curl -X POST \
+  http://localhost:8000/admin/api/clients/<client-id>/rotate-key \
+  -H 'X-Admin-Key: dev-admin-key'
+```
+
+The old key stops authenticating immediately.
+
+## Create request policy
+
+Deny a model family:
+
+```bash
+curl -X PUT http://localhost:8000/admin/api/policies/block-secret \
+  -H 'X-Admin-Key: dev-admin-key' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "priority":1,
+    "effect":"deny",
+    "models":["mock:secret*"]
+  }'
+```
+
+Limit output tokens:
+
+```bash
+curl -X PUT http://localhost:8000/admin/api/policies/operator-limit \
+  -H 'X-Admin-Key: dev-admin-key' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "priority":10,
+    "effect":"allow",
+    "roles":["operator"],
+    "max_tokens":2048
+  }'
 ```
 
 ## Dynamic alias
@@ -57,55 +105,11 @@ curl -X PUT http://localhost:8000/admin/api/aliases/quality \
   -d '{"target":"mock:quality"}'
 ```
 
-The next request may immediately use:
-
-```json
-{
-  "model": "quality",
-  "messages": [{"role": "user", "content": "Use the managed alias"}]
-}
-```
-
-## Dynamic model pool and cost routing
-
-Create a pool:
-
-```bash
-curl -X PUT http://localhost:8000/admin/api/pools/balanced \
-  -H 'X-Admin-Key: dev-admin-key' \
-  -H 'Content-Type: application/json' \
-  -d '{"models":["mock:premium","mock:cheap"]}'
-```
-
-Set prices:
-
-```bash
-curl -X PUT http://localhost:8000/admin/api/pricing/mock:cheap \
-  -H 'X-Admin-Key: dev-admin-key' \
-  -H 'Content-Type: application/json' \
-  -d '{"input_per_million":1,"output_per_million":2}'
-```
-
-Then choose `cost` either per request or as the global runtime policy.
-
 ## Audit
 
 ```bash
 curl http://localhost:8000/admin/api/audit \
   -H 'X-Admin-Key: dev-admin-key'
-```
-
-## RBAC behavior
-
-- viewer: read APIs only
-- operator: read + Chat Completion
-- admin: operator + Admin API
-
-## Usage / budget
-
-```bash
-curl http://localhost:8000/v1/usage -H 'X-API-Key: dev-gateway-key'
-curl http://localhost:8000/v1/budgets -H 'X-API-Key: dev-gateway-key'
 ```
 
 ## Health / metrics
@@ -116,19 +120,14 @@ curl http://localhost:8000/ready
 curl http://localhost:8000/metrics
 ```
 
-## Docker Compose
-
-```bash
-cp .env.example .env
-docker compose up --build
-```
-
-## Helm
+## Helm validation
 
 ```bash
 helm lint deploy/helm/multi-llm-ai-gateway
-helm template ai-gateway deploy/helm/multi-llm-ai-gateway
-```
 
-See [Enterprise Deployment](enterprise-deployment.md) for the Kubernetes Secret contract and
-installation example.
+helm template ai-gateway deploy/helm/multi-llm-ai-gateway
+
+helm template ai-gateway-hardening deploy/helm/multi-llm-ai-gateway \
+  --set networkPolicy.enabled=true \
+  --set serviceMonitor.enabled=true
+```
