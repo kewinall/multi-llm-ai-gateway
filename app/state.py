@@ -1,4 +1,3 @@
-import asyncio
 import hashlib
 import json
 import math
@@ -8,6 +7,7 @@ from abc import ABC, abstractmethod
 from collections import defaultdict, deque
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
+from threading import Lock
 from typing import Any
 
 import redis.asyncio as redis
@@ -120,13 +120,13 @@ class InMemoryStateBackend(StateBackend):
         self._round_robin: dict[str, int] = {}
         self._circuits: dict[str, dict[str, float | int | None]] = {}
         self._records: list[UsageRecord] = []
-        self._lock = asyncio.Lock()
+        self._lock = Lock()
 
     async def health(self) -> bool:
         return True
 
     async def reset(self) -> None:
-        async with self._lock:
+        with self._lock:
             self._rate_requests.clear()
             self._round_robin.clear()
             self._circuits.clear()
@@ -141,7 +141,7 @@ class InMemoryStateBackend(StateBackend):
     ) -> RateLimitState:
         now = time.time()
         cutoff = now - window_seconds
-        async with self._lock:
+        with self._lock:
             bucket = self._rate_requests[key]
             while bucket and bucket[0] <= cutoff:
                 bucket.popleft()
@@ -157,14 +157,14 @@ class InMemoryStateBackend(StateBackend):
     async def round_robin_index(self, key: str, size: int) -> int:
         if size <= 0:
             raise ValueError("size must be positive")
-        async with self._lock:
+        with self._lock:
             cursor = self._round_robin.get(key, 0)
             self._round_robin[key] = cursor + 1
         return cursor % size
 
     async def circuit_allow(self, provider: str, recovery_seconds: float) -> bool:
         now = time.time()
-        async with self._lock:
+        with self._lock:
             state = self._circuits.get(provider)
             if not state or state.get("opened_at") is None:
                 return True
@@ -172,12 +172,12 @@ class InMemoryStateBackend(StateBackend):
         return now - opened_at >= recovery_seconds
 
     async def circuit_success(self, provider: str) -> None:
-        async with self._lock:
+        with self._lock:
             self._circuits.pop(provider, None)
 
     async def circuit_failure(self, provider: str, failure_threshold: int) -> None:
         now = time.time()
-        async with self._lock:
+        with self._lock:
             state = self._circuits.setdefault(
                 provider,
                 {"failures": 0, "opened_at": None},
@@ -193,7 +193,7 @@ class InMemoryStateBackend(StateBackend):
         recovery_seconds: float,
     ) -> dict[str, object]:
         now = time.time()
-        async with self._lock:
+        with self._lock:
             state = self._circuits.get(
                 provider,
                 {"failures": 0, "opened_at": None},
@@ -232,7 +232,7 @@ class InMemoryStateBackend(StateBackend):
             cost_usd=cost_usd,
             pricing_known=pricing_known,
         )
-        async with self._lock:
+        with self._lock:
             self._records.append(item)
         return item
 
@@ -249,7 +249,7 @@ class InMemoryStateBackend(StateBackend):
         else:
             raise ValueError("period must be 'day' or 'month'")
 
-        async with self._lock:
+        with self._lock:
             return sum(
                 record.cost_usd
                 for record in self._records
@@ -257,7 +257,7 @@ class InMemoryStateBackend(StateBackend):
             )
 
     async def usage_snapshot(self) -> dict[str, Any]:
-        async with self._lock:
+        with self._lock:
             records = list(self._records)
 
         totals: dict[str, int | float] = {
