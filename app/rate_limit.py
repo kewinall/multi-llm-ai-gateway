@@ -9,9 +9,14 @@ class RateLimiter:
     async def reset(self) -> None:
         await self.backend.reset()
 
-    async def check(self, principal: str) -> RateLimitState:
+    async def check(
+        self,
+        principal: str,
+        requests_per_minute: int | None = None,
+    ) -> RateLimitState:
+        limit = requests_per_minute or self.requests_per_minute
         return await self.backend.rate_limit(
             stable_principal(principal),
-            limit=self.requests_per_minute,
+            limit=limit,
             window_seconds=60,
         )
