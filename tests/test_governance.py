@@ -1,18 +1,23 @@
 from datetime import UTC, datetime
 
+import pytest
+
 from app.budget import BudgetManager
 from app.config import Settings
 from app.rate_limit import RateLimiter
 from app.resilience import CircuitBreaker
+from app.state import InMemoryStateBackend
 from app.usage import UsageStore
 
 
-def test_rate_limiter_blocks_after_limit() -> None:
-    limiter = RateLimiter(2)
+@pytest.mark.asyncio
+async def test_rate_limiter_blocks_after_limit() -> None:
+    backend = InMemoryStateBackend()
+    limiter = RateLimiter(backend, 2)
 
-    first = limiter.check("client", now=100.0)
-    second = limiter.check("client", now=101.0)
-    third = limiter.check("client", now=102.0)
+    first = await limiter.check("client")
+    second = await limiter.check("client")
+    third = await limiter.check("client")
 
     assert first.allowed is True
     assert second.allowed is True
@@ -20,10 +25,12 @@ def test_rate_limiter_blocks_after_limit() -> None:
     assert third.remaining == 0
 
 
-def test_budget_manager_detects_exhausted_daily_budget() -> None:
+@pytest.mark.asyncio
+async def test_budget_manager_detects_exhausted_daily_budget() -> None:
     settings = Settings(daily_budget_usd=1.0, monthly_budget_usd=10.0)
-    store = UsageStore()
-    store.record(
+    backend = InMemoryStateBackend()
+    store = UsageStore(backend)
+    await store.record(
         request_id="req-1",
         provider="mock",
         model="paid",
@@ -35,25 +42,30 @@ def test_budget_manager_detects_exhausted_daily_budget() -> None:
     )
     manager = BudgetManager(settings, store)
 
-    status = manager.status()
+    status = await manager.status()
 
     assert status["daily"]["exhausted"] is True
     assert status["monthly"]["exhausted"] is False
-    assert manager.allowed() is False
+    assert await manager.allowed() is False
 
 
-def test_circuit_breaker_opens_and_recovers() -> None:
-    breaker = CircuitBreaker(failure_threshold=2, recovery_seconds=30)
+@pytest.mark.asyncio
+async def test_circuit_breaker_opens_and_resets() -> None:
+    backend = InMemoryStateBackend()
+    breaker = CircuitBreaker(
+        backend,
+        failure_threshold=2,
+        recovery_seconds=60,
+    )
 
-    breaker.failure("provider", now=100.0)
-    assert breaker.allow("provider", now=101.0) is True
+    await breaker.failure("provider")
+    assert await breaker.allow("provider") is True
 
-    breaker.failure("provider", now=102.0)
-    assert breaker.allow("provider", now=103.0) is False
-    assert breaker.status("provider", now=103.0)["state"] == "open"
+    await breaker.failure("provider")
+    assert await breaker.allow("provider") is False
+    assert (await breaker.status("provider"))["state"] == "open"
 
-    assert breaker.allow("provider", now=133.0) is True
-    assert breaker.status("provider", now=133.0)["state"] == "half_open"
+    assert (await backend.circuit_status("provider", 0))["state"] == "half_open"
 
-    breaker.success("provider")
-    assert breaker.status("provider", now=134.0)["state"] == "closed"
+    await breaker.success("provider")
+    assert (await breaker.status("provider"))["state"] == "closed"
