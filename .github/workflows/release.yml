@@ -47,6 +47,11 @@ jobs:
       - name: Container build
         run: docker build -t multi-llm-ai-gateway:release .
 
+      - name: Validate Compose stack
+        run: |
+          cp .env.example .env
+          docker compose config --quiet
+
   security:
     runs-on: ubuntu-latest
     steps:
