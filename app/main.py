@@ -1,5 +1,4 @@
 import uuid
-from typing import Annotated
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -44,9 +43,7 @@ async def providers() -> dict[str, object]:
 
 
 @app.post("/v1/chat/completions", dependencies=[Depends(require_api_key)])
-async def chat_completions(
-    request: Annotated[ChatCompletionRequest, Depends()],
-):
+async def chat_completions(request: ChatCompletionRequest):
     if request.stream:
         raise HTTPException(status_code=400, detail="Streaming is not supported in v0.1")
 
