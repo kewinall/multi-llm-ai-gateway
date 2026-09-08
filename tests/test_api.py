@@ -19,7 +19,7 @@ def test_health_and_readiness() -> None:
     health = client.get("/health")
     assert health.status_code == 200
     assert health.json()["status"] == "ok"
-    assert health.json()["version"] == "0.4.0"
+    assert health.json()["version"] == "0.5.0"
     assert health.json()["state_backend"] == "memory"
     assert health.headers["X-Request-ID"]
 
@@ -98,14 +98,23 @@ def test_budget_status_endpoint() -> None:
     assert response.json()["monthly"]["exhausted"] is False
 
 
-def test_streaming_is_rejected_in_v04() -> None:
+def test_streaming_returns_openai_compatible_sse_and_records_usage() -> None:
     response = client.post(
         "/v1/chat/completions",
         headers=AUTH,
         json={
             "model": "mock:demo",
             "stream": True,
-            "messages": [{"role": "user", "content": "hello"}],
+            "messages": [{"role": "user", "content": "hello stream"}],
         },
     )
-    assert response.status_code == 400
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/event-stream")
+    assert "chat.completion.chunk" in response.text
+    assert "mock response:" in response.text
+    assert "data: [DONE]" in response.text
+    assert '"stream":true' in response.text
+
+    usage = client.get("/v1/usage", headers=AUTH).json()
+    assert usage["totals"]["requests"] == 1
+    assert usage["totals"]["total_tokens"] > 0
