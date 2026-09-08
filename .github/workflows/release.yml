@@ -18,6 +18,20 @@ concurrency:
 jobs:
   quality:
     runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      TEST_REDIS_URL: redis://localhost:6379/15
+
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -78,7 +92,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.version.outputs.tag }}
-          VERSION: ${{ steps.version.outputs.version }}
         shell: bash
         run: |
           set -euo pipefail
@@ -87,8 +100,16 @@ jobs:
             exit 0
           fi
 
-          gh release create "$TAG" \
-            --target "$GITHUB_SHA" \
-            --title "$TAG" \
-            --generate-notes \
-            --notes-start-tag "$(git tag --sort=-version:refname | head -n 1 || true)"
+          PREVIOUS_TAG="$(git tag --sort=-version:refname | head -n 1 || true)"
+          if [[ -n "$PREVIOUS_TAG" ]]; then
+            gh release create "$TAG" \
+              --target "$GITHUB_SHA" \
+              --title "$TAG" \
+              --generate-notes \
+              --notes-start-tag "$PREVIOUS_TAG"
+          else
+            gh release create "$TAG" \
+              --target "$GITHUB_SHA" \
+              --title "$TAG" \
+              --generate-notes
+          fi
