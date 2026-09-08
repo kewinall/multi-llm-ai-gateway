@@ -11,6 +11,7 @@ from threading import Lock
 from typing import Any
 
 import redis.asyncio as redis
+from redis.exceptions import RedisError
 
 from app.config import Settings
 
@@ -336,7 +337,7 @@ class RedisStateBackend(StateBackend):
     async def health(self) -> bool:
         try:
             return bool(await self.redis.ping())
-        except redis.RedisError:
+        except RedisError:
             return False
 
     async def reset(self) -> None:
