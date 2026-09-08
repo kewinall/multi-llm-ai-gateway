@@ -21,6 +21,7 @@ class GovernanceStore:
             "pricing": {},
             "settings": {},
             "clients": {},
+            "policies": {},
         }
         self._audit_events: list[dict[str, Any]] = []
 
@@ -66,6 +67,7 @@ class GovernanceStore:
                 self._redis_key("pricing"),
                 self._redis_key("settings"),
                 self._redis_key("clients"),
+                self._redis_key("policies"),
                 self._redis_key("audit"),
             ]
             await self.backend.redis.delete(*keys)
@@ -112,6 +114,7 @@ class GovernanceStore:
         dynamic_pools = await self._hgetall("pools")
         dynamic_pricing = await self._hgetall("pricing")
         dynamic_settings = await self._hgetall("settings")
+        dynamic_policies = await self._hgetall("policies")
 
         aliases = dict(self.settings.model_aliases)
         aliases.update(dynamic_aliases)
@@ -122,10 +125,14 @@ class GovernanceStore:
         pricing = dict(self.settings.model_pricing)
         pricing.update({key: json.loads(value) for key, value in dynamic_pricing.items()})
 
+        policies = dict(self.settings.policies)
+        policies.update({key: json.loads(value) for key, value in dynamic_policies.items()})
+
         return {
             "aliases": aliases,
             "pools": pools,
             "pricing": pricing,
+            "policies": policies,
             "routing_policy": dynamic_settings.get(
                 "routing_policy",
                 self.settings.routing_policy,
@@ -201,6 +208,27 @@ class GovernanceStore:
             resource="settings:routing_policy",
             details={"routing_policy": policy},
         )
+
+    async def set_policy(
+        self,
+        name: str,
+        rule: dict[str, Any],
+        actor: str,
+    ) -> None:
+        effect = str(rule.get("effect", "allow")).lower()
+        if effect not in {"allow", "deny"}:
+            raise ValueError("Policy effect must be allow or deny")
+        await self._hset("policies", name, json.dumps(rule, separators=(",", ":")))
+        await self.audit(
+            actor=actor,
+            action="upsert",
+            resource=f"policy:{name}",
+            details={"effect": effect},
+        )
+
+    async def delete_policy(self, name: str, actor: str) -> None:
+        await self._hdel("policies", name)
+        await self.audit(actor=actor, action="delete", resource=f"policy:{name}")
 
     @staticmethod
     def hash_api_key(api_key: str) -> str:
@@ -293,6 +321,28 @@ class GovernanceStore:
             },
         )
         return record
+
+    async def rotate_client_key(
+        self,
+        client_id: str,
+        actor: str,
+    ) -> dict[str, Any]:
+        entry = await self._client_entry_by_id(client_id)
+        if entry is None:
+            raise KeyError(client_id)
+        old_digest, record = entry
+        api_key = f"llmgw_{secrets.token_urlsafe(24)}"
+        new_digest = self.hash_api_key(api_key)
+        record["rotated_at"] = datetime.now(UTC).isoformat()
+        await self._hset("clients", new_digest, json.dumps(record, separators=(",", ":")))
+        await self._hdel("clients", old_digest)
+        await self.audit(
+            actor=actor,
+            action="rotate_key",
+            resource=f"client:{client_id}",
+            details={"name": record["name"]},
+        )
+        return {**record, "api_key": api_key}
 
     async def delete_client(self, client_id: str, actor: str) -> None:
         entry = await self._client_entry_by_id(client_id)
