@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     gateway_api_key: str = "dev-gateway-key"
+    admin_api_key: str = "dev-admin-key"
     request_timeout_seconds: float = 60.0
 
     openai_api_key: str | None = None
