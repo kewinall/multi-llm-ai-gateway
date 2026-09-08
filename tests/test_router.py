@@ -80,8 +80,9 @@ async def test_round_robin_rotates_pool() -> None:
     assert second["model"] == "b"
 
 
-def test_resolve_requires_provider_prefix_or_alias() -> None:
+@pytest.mark.asyncio
+async def test_resolve_requires_provider_prefix_or_alias() -> None:
     router = ModelRouter(Settings(model_aliases_json="{}"), InMemoryStateBackend())
 
     with pytest.raises(ValueError):
-        router.resolve("missing-prefix")
+        await router.resolve("missing-prefix")
