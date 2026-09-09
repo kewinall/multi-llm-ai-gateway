@@ -1,0 +1,425 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Multi-LLM AI Gateway v0.5 — Enterprise Model Control Plane 單一 HTML 專案說明、使用指南與面試展示文件">
+<title>Multi-LLM AI Gateway v0.5｜Enterprise Model Control Plane</title>
+<style>
+:root{
+  --bg:#07111f;--bg2:#0b1728;--panel:#0e1c31cc;--panel2:#12243d;
+  --text:#eaf2ff;--muted:#9eb0c9;--line:#243a58;--blue:#68a7ff;--cyan:#51d8d2;
+  --green:#6ee7a8;--amber:#f7c66a;--red:#ff8e9d;--violet:#b6a0ff;--shadow:0 18px 55px #0006;
+  --radius:18px;--code:#08101c;--navw:260px;
+}
+html[data-theme="light"]{
+  --bg:#f4f7fb;--bg2:#ffffff;--panel:#ffffffdd;--panel2:#f7faff;--text:#142238;--muted:#5f718b;
+  --line:#dbe5f0;--blue:#1769d2;--cyan:#087f86;--green:#148659;--amber:#9b6500;--red:#bd3851;--violet:#6e4fd7;
+  --shadow:0 18px 55px #2c47721a;--code:#101b2a;
+}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:
+radial-gradient(1100px 700px at 85% -10%,#17345f66,transparent 58%),
+radial-gradient(900px 650px at 5% 0%,#0f526055,transparent 55%),var(--bg);color:var(--text);
+font-family:Inter,"Noto Sans TC","Microsoft JhengHei",system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.7}
+a{color:var(--blue);text-decoration:none}a:hover{text-decoration:underline}code,kbd,pre{font-family:"SFMono-Regular",Consolas,"Liberation Mono",monospace}
+#progress{position:fixed;left:0;top:0;height:3px;background:linear-gradient(90deg,var(--cyan),var(--blue),var(--violet));width:0;z-index:99}
+.shell{display:grid;grid-template-columns:var(--navw) minmax(0,1fr);min-height:100vh}
+.side{position:fixed;left:0;top:0;bottom:0;width:var(--navw);padding:26px 18px 22px;background:#07101ee8;border-right:1px solid var(--line);backdrop-filter:blur(16px);z-index:30;overflow:auto}
+html[data-theme="light"] .side{background:#f8fbffe8}.brand{padding:0 8px 18px;border-bottom:1px solid var(--line);margin-bottom:14px}.brand b{display:block;font-size:16px;letter-spacing:.2px}.brand small{color:var(--muted)}
+.nav a{display:block;padding:9px 10px;margin:2px 0;border-radius:9px;color:var(--muted);font-size:13px;border:1px solid transparent}.nav a:hover,.nav a.active{color:var(--text);text-decoration:none;background:var(--panel2);border-color:var(--line)}
+.side-actions{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:16px}.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;border:1px solid var(--line);background:var(--panel2);color:var(--text);padding:9px 12px;border-radius:10px;cursor:pointer;font:inherit;font-size:13px}.btn:hover{border-color:var(--blue);text-decoration:none}.btn.primary{background:linear-gradient(135deg,#185fbc,#247ddb);border-color:#4a93e9;color:white}.btn.ghost{background:transparent}
+.main{grid-column:2;padding:0 44px 64px;max-width:1480px;width:100%;margin:0 auto}.hero{min-height:720px;display:grid;align-items:center;padding:68px 0 44px;position:relative}.eyebrow{display:inline-flex;gap:9px;align-items:center;border:1px solid #4c78a866;background:#18345555;border-radius:999px;padding:6px 12px;color:#b8d8ff;font-size:13px}.pulse{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 0 0 #6ee7a888;animation:pulse 2.1s infinite}@keyframes pulse{70%{box-shadow:0 0 0 9px #6ee7a800}}
+h1{font-size:clamp(42px,6vw,78px);line-height:1.03;letter-spacing:-2.5px;margin:18px 0 16px;max-width:1100px}.gradient{background:linear-gradient(100deg,#72d7ff,#78aaff,#c1a4ff);-webkit-background-clip:text;background-clip:text;color:transparent}.lead{font-size:20px;color:var(--muted);max-width:920px;margin:0 0 26px}.hero-actions{display:flex;gap:10px;flex-wrap:wrap}.hero-grid{display:grid;grid-template-columns:1.25fr .75fr;gap:28px;align-items:end}.hero-card{background:linear-gradient(145deg,#12253fb8,#0c1728cc);border:1px solid #305177;border-radius:24px;padding:22px;box-shadow:var(--shadow);position:relative;overflow:hidden}.hero-card:after{content:"";position:absolute;width:260px;height:260px;border-radius:50%;background:#3e79bd22;right:-130px;top:-120px}.mini-flow{display:grid;gap:10px}.mini-node{border:1px solid var(--line);background:#071220aa;border-radius:12px;padding:10px 12px;display:flex;align-items:center;justify-content:space-between;font-size:13px}.mini-node span:last-child{color:var(--muted)}
+.kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-top:26px}.kpi{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 14px;box-shadow:0 10px 30px #0002}.kpi b{display:block;font-size:23px}.kpi span{font-size:12px;color:var(--muted)}
+section{padding:60px 0 10px;scroll-margin-top:12px}.section-head{display:flex;justify-content:space-between;gap:24px;align-items:end;margin-bottom:24px}.section-head h2{font-size:34px;letter-spacing:-.8px;margin:0}.section-head p{margin:0;color:var(--muted);max-width:700px}.tag{display:inline-block;font-size:12px;padding:4px 8px;border:1px solid var(--line);border-radius:999px;color:var(--muted);margin-right:5px}.tag.blue{color:#b8d8ff;border-color:#3b6fa8}.tag.green{color:#b5f4d3;border-color:#327957}.tag.amber{color:#ffe2a0;border-color:#86621b}.tag.violet{color:#d9ceff;border-color:#63549a}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}.grid4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:20px;box-shadow:0 14px 35px #0002}.card h3{margin:0 0 8px;font-size:18px}.card p{margin:0;color:var(--muted)}.feature{position:relative;overflow:hidden}.feature:before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--blue)}.feature.green:before{background:var(--green)}.feature.amber:before{background:var(--amber)}.feature.violet:before{background:var(--violet)}
+.interview{border-color:#745ce0;background:linear-gradient(140deg,#211d472e,var(--panel))}.interview-badge{display:inline-flex;align-items:center;gap:6px;color:#d8cbff;font-size:12px;margin-bottom:6px}.interview-only{display:block}body:not(.interview-mode) .interview-only{display:none}
+.callout{border:1px solid #416b8d;background:#0e2d3b77;border-radius:14px;padding:16px 18px}.callout strong{color:#bcecf0}.note{border-left:3px solid var(--amber);padding:10px 14px;background:#7b5b1422;color:var(--muted);border-radius:0 10px 10px 0}
+.diagram{background:linear-gradient(180deg,#091625,#09111d);border:1px solid var(--line);border-radius:22px;padding:14px;overflow:hidden}.diagram svg{width:100%;height:auto;display:block}.diagram .box{fill:#10243b;stroke:#365a7c;stroke-width:1.4}.diagram .box2{fill:#132947;stroke:#4a78a7;stroke-width:1.4}.diagram .box3{fill:#173834;stroke:#3d8069;stroke-width:1.4}.diagram .box4{fill:#2b203f;stroke:#725fa3;stroke-width:1.4}.diagram text{fill:#eaf2ff;font-family:Inter,system-ui,sans-serif;font-size:13px}.diagram .mutet{fill:#9eb0c9;font-size:11px}.diagram .arrow{stroke:#7ab6ff;stroke-width:2;fill:none;marker-end:url(#arrow)}.diagram .dash{stroke:#4d718f;stroke-dasharray:6 5;fill:none}.diagram .glow{filter:drop-shadow(0 0 8px #2f82d655)}
+.steps{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;counter-reset:step}.step{position:relative;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 14px 14px;min-height:150px}.step:before{counter-increment:step;content:counter(step);position:absolute;right:12px;top:10px;font-size:28px;font-weight:800;color:#44678e66}.step b{display:block;margin-bottom:5px}.step small{color:var(--muted)}
+.table-wrap{overflow:auto;border:1px solid var(--line);border-radius:15px;background:var(--panel)}table{width:100%;border-collapse:collapse;min-width:720px}th,td{text-align:left;padding:12px 14px;border-bottom:1px solid var(--line);vertical-align:top}th{font-size:12px;color:#b9c9dc;background:#12233a;position:sticky;top:0}td{font-size:13px}tr:last-child td{border-bottom:0}.yes{color:var(--green);font-weight:700}.no{color:var(--red)}.partial{color:var(--amber)}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}.tab{border:1px solid var(--line);background:transparent;color:var(--muted);padding:8px 12px;border-radius:9px;cursor:pointer}.tab.active{background:var(--panel2);color:var(--text);border-color:#4e779f}.tab-panel{display:none}.tab-panel.active{display:block}
+.codebox{position:relative;background:var(--code);border:1px solid #23364d;border-radius:14px;overflow:hidden}.code-title{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-bottom:1px solid #203147;color:#8fa5c0;font-size:12px}.codebox pre{margin:0;padding:15px 16px;overflow:auto;color:#d8e6f8;font-size:12px;line-height:1.65;white-space:pre}.copy{border:1px solid #344b68;background:#102239;color:#bdd1e8;border-radius:7px;padding:4px 8px;cursor:pointer;font-size:11px}.copy.copied{color:var(--green);border-color:#36765c}
+.timeline{position:relative;margin-left:12px}.timeline:before{content:"";position:absolute;left:13px;top:8px;bottom:8px;width:2px;background:linear-gradient(var(--cyan),var(--blue),var(--violet))}.release{position:relative;padding:0 0 25px 45px}.release:before{content:"";position:absolute;left:5px;top:3px;width:16px;height:16px;border-radius:50%;background:var(--bg2);border:3px solid var(--blue)}.release h3{margin:0 0 5px}.release p{margin:0;color:var(--muted);font-size:14px}.release.current:before{border-color:var(--green);box-shadow:0 0 0 6px #54d6a320}
+.skillmap{display:grid;gap:11px}.bar{display:grid;grid-template-columns:160px 1fr 66px;gap:12px;align-items:center}.track{height:9px;background:#14283f;border-radius:999px;overflow:hidden}.fill{height:100%;border-radius:999px;background:linear-gradient(90deg,var(--cyan),var(--blue));transform-origin:left;animation:grow 1.2s ease both}@keyframes grow{from{transform:scaleX(0)}}.bar small{color:var(--muted);text-align:right}
+.qa details{border:1px solid var(--line);background:var(--panel);border-radius:12px;margin-bottom:9px;overflow:hidden}.qa summary{padding:13px 15px;cursor:pointer;font-weight:700}.qa details div{padding:0 15px 15px;color:var(--muted);font-size:14px}.qa code{color:#b9d7ff}
+.reveal{opacity:0;transform:translateY(18px);transition:.6s ease}.reveal.show{opacity:1;transform:none}
+.footer{margin-top:70px;border-top:1px solid var(--line);padding:24px 0 10px;color:var(--muted);font-size:13px;display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap}
+.mobile-top{display:none;position:fixed;left:0;right:0;top:0;height:54px;background:#07101ef2;border-bottom:1px solid var(--line);z-index:40;padding:8px 12px;align-items:center;justify-content:space-between}.mobile-top b{font-size:13px}.mobile-top .btn{padding:6px 9px}
+@media(max-width:1120px){.kpis{grid-template-columns:repeat(3,1fr)}.grid4{grid-template-columns:repeat(2,1fr)}.steps{grid-template-columns:repeat(3,1fr)}.hero-grid{grid-template-columns:1fr}.hero{min-height:auto}.hero-card{max-width:700px}}
+@media(max-width:880px){:root{--navw:0px}.side{display:none}.mobile-top{display:flex}.shell{display:block}.main{padding:64px 20px 50px}.hero{padding-top:42px}.grid2,.grid3{grid-template-columns:1fr}.steps{grid-template-columns:1fr 1fr}.section-head{display:block}.section-head p{margin-top:8px}.bar{grid-template-columns:125px 1fr 56px}}
+@media(max-width:560px){h1{font-size:43px}.kpis,.grid4,.steps{grid-template-columns:1fr 1fr}.lead{font-size:17px}.main{padding-left:14px;padding-right:14px}.card{padding:16px}.kpi b{font-size:20px}.hero-actions .btn{width:100%}.bar{grid-template-columns:1fr}.bar small{text-align:left}.footer{display:block}}
+@media print{.side,.mobile-top,#progress,.hero-actions,.copy,.interview-toggle,.theme-toggle{display:none!important}.shell{display:block}.main{padding:0;max-width:none}.hero{min-height:auto;padding:30px 0}.reveal{opacity:1!important;transform:none!important}body{background:white;color:#111}.card,.table-wrap,.diagram,.codebox{break-inside:avoid;box-shadow:none}.interview-only{display:block!important}}
+</style>
+</head>
+<body>
+<div id="progress"></div>
+<div class="mobile-top"><b>Multi-LLM AI Gateway v0.5</b><div><button class="btn" onclick="toggleInterview()">面試模式</button><button class="btn" onclick="toggleTheme()">主題</button></div></div>
+<div class="shell">
+<aside class="side">
+  <div class="brand"><b>Multi-LLM AI Gateway</b><small>v0.5 · Model Control Plane</small></div>
+  <nav class="nav" id="nav">
+    <a href="#overview">專案總覽</a><a href="#positioning">作品集定位</a><a href="#architecture">架構設計</a><a href="#request-flow">Request Lifecycle</a>
+    <a href="#features">功能矩陣</a><a href="#versions">版本演進</a><a href="#quickstart">快速開始</a><a href="#api">API 使用</a>
+    <a href="#identity">Identity / RBAC</a><a href="#policy">Policy Engine</a><a href="#admin">Admin Console</a><a href="#observability">Observability</a>
+    <a href="#kubernetes">Kubernetes / Helm</a><a href="#cicd">CI / Release</a><a href="#interview">面試官導覽</a><a href="#qa">面試問答</a><a href="#limits">限制與下一步</a>
+  </nav>
+  <div class="side-actions">
+    <button class="btn interview-toggle" onclick="toggleInterview()">面試模式</button>
+    <button class="btn theme-toggle" onclick="toggleTheme()">深淺主題</button>
+    <button class="btn" onclick="window.print()">列印 / PDF</button>
+    <a class="btn" href="https://github.com/kewinall/multi-llm-ai-gateway" target="_blank" rel="noreferrer">GitHub</a>
+  </div>
+</aside>
+<main class="main">
+  <section class="hero" id="overview">
+    <div class="hero-grid">
+      <div>
+        <span class="eyebrow"><i class="pulse"></i> v0.5.0 · Enterprise AI Platform Portfolio</span>
+        <h1>Multi-LLM AI Gateway<br><span class="gradient">Enterprise Model Control Plane</span></h1>
+        <p class="lead">以單一 OpenAI-compatible API 將 Application / RAG / Agent 與模型供應商解耦，集中治理 Routing、Fallback、Streaming、Identity、Policy、Budget / Cost、Distributed State 與 Observability。</p>
+        <div class="hero-actions">
+          <a class="btn primary" href="#quickstart">開始使用</a>
+          <a class="btn" href="#architecture">看架構圖</a>
+          <a class="btn" href="#interview">面試官快速導覽</a>
+          <a class="btn ghost" href="https://github.com/kewinall/multi-llm-ai-gateway/releases/tag/v0.5.0" target="_blank" rel="noreferrer">Release v0.5.0 ↗</a>
+        </div>
+        <div class="kpis">
+          <div class="kpi"><b>v0.5.0</b><span>正式 Release</span></div>
+          <div class="kpi"><b>4</b><span>LLM Providers</span></div>
+          <div class="kpi"><b>30</b><span>Automated Tests</span></div>
+          <div class="kpi"><b>3</b><span>RBAC Roles</span></div>
+          <div class="kpi"><b>4</b><span>Routing Policies</span></div>
+          <div class="kpi"><b>2</b><span>Default Replicas</span></div>
+        </div>
+      </div>
+      <div class="hero-card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px"><b>Request Control Path</b><span class="tag green">Production-oriented</span></div>
+        <div class="mini-flow">
+          <div class="mini-node"><b>01 · Identity</b><span>API Key / OIDC JWT</span></div>
+          <div class="mini-node"><b>02 · RBAC + Policy</b><span>viewer / operator / admin</span></div>
+          <div class="mini-node"><b>03 · Rate + Budget</b><span>RPM / Daily / Monthly</span></div>
+          <div class="mini-node"><b>04 · Model Routing</b><span>priority / RR / random / cost</span></div>
+          <div class="mini-node"><b>05 · Resilience</b><span>retry / fallback / circuit</span></div>
+          <div class="mini-node"><b>06 · Response</b><span>Buffered / SSE Streaming</span></div>
+          <div class="mini-node"><b>07 · Evidence</b><span>Usage / Cost / Metrics / Trace / Audit</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="positioning" class="reveal">
+    <div class="section-head"><div><span class="tag violet">Portfolio Boundary</span><h2>作品集中的責任邊界</h2></div><p>這個 Repository 的主角不是 RAG、不是 Agent、也不是 MCP，而是「模型控制平面」。這個邊界讓面試官能一眼看出系統分層與架構意識。</p></div>
+    <div class="grid4">
+      <div class="card feature"><h3>Multi-LLM AI Gateway</h3><p><b>Model Control Plane</b><br>Routing、Fallback、Streaming、Policy、Identity、Budget / Cost、Observability。</p></div>
+      <div class="card feature green"><h3>Enterprise RAG Platform</h3><p><b>Knowledge AI Platform</b><br>Ingestion、Retrieval、Grounding、Citation、Evaluation。</p></div>
+      <div class="card feature amber"><h3>Agentic DataOps Copilot</h3><p><b>AI Reasoning / Operations</b><br>Incident reasoning、DataOps actions、governed operations。</p></div>
+      <div class="card feature violet"><h3>Data Platform MCP Server</h3><p><b>Tool / Integration Platform</b><br>MCP tools、data platform integration、standardized interfaces。</p></div>
+    </div>
+    <div class="callout" style="margin-top:16px"><strong>一句話定位：</strong> 多個 RAG / Agent / Application 只需要對接一個 OpenAI-compatible endpoint，由 Gateway 統一決定「誰可以用、用哪個模型、失敗怎麼切、花多少錢、如何觀測」。</div>
+  </section>
+
+  <section id="architecture" class="reveal">
+    <div class="section-head"><div><span class="tag blue">Architecture</span><h2>企業級控制平面架構</h2></div><p>Data Plane 負責每次模型請求；Management Plane 提供動態治理。Redis 讓多個 Gateway replicas 共享 rate limit、circuit、usage 與 governance state。</p></div>
+    <div class="diagram">
+      <svg viewBox="0 0 1180 660" role="img" aria-label="Multi-LLM AI Gateway architecture">
+        <defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="3.5" orient="auto"><path d="M0,0 L8,3.5 L0,7 z" fill="#7ab6ff"/></marker></defs>
+        <text x="60" y="42" style="font-size:18px;font-weight:700">Consumers</text>
+        <rect class="box" x="45" y="64" rx="14" width="225" height="64"/><text x="74" y="91">Application / RAG / Agent</text><text class="mutet" x="74" y="111">OpenAI-compatible client</text>
+        <path class="arrow" d="M270 96 H365"/>
+        <text x="390" y="42" style="font-size:18px;font-weight:700">Gateway Data Plane</text>
+        <rect class="box2 glow" x="365" y="64" rx="14" width="265" height="64"/><text x="390" y="89">Authentication & Principal</text><text class="mutet" x="390" y="109">API Key / OIDC JWT / RBAC</text>
+        <rect class="box2" x="365" y="155" rx="14" width="265" height="64"/><text x="390" y="180">Policy Engine</text><text class="mutet" x="390" y="200">role / client / model / stream / max_tokens</text>
+        <rect class="box2" x="365" y="246" rx="14" width="265" height="64"/><text x="390" y="271">Rate Limit + Budget</text><text class="mutet" x="390" y="291">RPM / daily / monthly</text>
+        <rect class="box2 glow" x="365" y="337" rx="14" width="265" height="74"/><text x="390" y="362">Model Policy Router</text><text class="mutet" x="390" y="382">priority / round-robin / random / cost</text><text class="mutet" x="390" y="397">retry / fallback / circuit breaker</text>
+        <path class="arrow" d="M498 128 V155"/><path class="arrow" d="M498 219 V246"/><path class="arrow" d="M498 310 V337"/>
+        <text x="745" y="42" style="font-size:18px;font-weight:700">LLM Providers</text>
+        <rect class="box3" x="735" y="69" rx="14" width="170" height="58"/><text x="781" y="102">OpenAI</text>
+        <rect class="box3" x="735" y="145" rx="14" width="170" height="58"/><text x="773" y="178">Anthropic</text>
+        <rect class="box3" x="735" y="221" rx="14" width="170" height="58"/><text x="766" y="254">Google Gemini</text>
+        <rect class="box3" x="735" y="297" rx="14" width="170" height="58"/><text x="788" y="330">Mock</text>
+        <path class="arrow" d="M630 374 C685 374 682 98 735 98"/><path class="arrow" d="M630 374 C690 374 684 174 735 174"/><path class="arrow" d="M630 374 C690 374 690 250 735 250"/><path class="arrow" d="M630 374 H735"/>
+        <rect class="box2" x="365" y="447" rx="14" width="265" height="72"/><text x="390" y="473">Buffered / SSE Response</text><text class="mutet" x="390" y="493">usage + cost finalization</text><path class="arrow" d="M498 411 V447"/>
+        <text x="45" y="456" style="font-size:18px;font-weight:700">Management Plane</text>
+        <rect class="box4" x="45" y="477" rx="14" width="225" height="92"/><text x="72" y="505">Admin Console / API</text><text class="mutet" x="72" y="527">aliases · pools · pricing · policy</text><text class="mutet" x="72" y="546">clients · key rotation · audit</text>
+        <path class="dash" d="M270 523 H365"/>
+        <text x="735" y="436" style="font-size:18px;font-weight:700">Distributed State & Evidence</text>
+        <rect class="box" x="735" y="459" rx="14" width="170" height="62"/><text x="794" y="487">Redis</text><text class="mutet" x="762" y="505">state + governance</text>
+        <rect class="box" x="930" y="459" rx="14" width="190" height="62"/><text x="968" y="487">Prometheus</text><text class="mutet" x="972" y="505">metrics / alerts</text>
+        <rect class="box" x="735" y="545" rx="14" width="170" height="62"/><text x="784" y="574">Grafana</text><text class="mutet" x="770" y="592">dashboard / insight</text>
+        <rect class="box" x="930" y="545" rx="14" width="190" height="62"/><text x="981" y="574">OTel</text><text class="mutet" x="967" y="592">traces / collector</text>
+        <path class="arrow" d="M630 483 H735"/><path class="arrow" d="M905 490 H930"/><path class="arrow" d="M820 521 V545"/><path class="arrow" d="M1025 521 V545"/>
+      </svg>
+    </div>
+    <div class="interview-only card interview" style="margin-top:16px"><span class="interview-badge">◆ 面試官模式</span><h3>架構決策亮點</h3><p>把「Provider Adapter」「Policy」「Runtime State」「Governance Store」拆成明確責任，可以分別演進。Redis 不只是 cache，而是用來解決 multi-replica 下的 sliding-window rate limit、round-robin cursor、circuit state、usage/budget 與 dynamic governance 一致性。</p></div>
+  </section>
+
+  <section id="request-flow" class="reveal">
+    <div class="section-head"><div><span class="tag green">Control Flow</span><h2>一次模型請求如何被治理</h2></div><p>控制不是在 Provider 呼叫之後補做，而是在 request path 上逐層 gate，先拒絕不合規請求，再進入模型選擇與成本累積。</p></div>
+    <div class="steps">
+      <div class="step"><b>Authenticate</b><small>解析 X-API-Key 或 OIDC Bearer JWT，建立 Principal。</small></div>
+      <div class="step"><b>Authorize</b><small>RBAC：viewer / operator / admin，Chat Completion 至少需要 operator。</small></div>
+      <div class="step"><b>Policy</b><small>依 priority 對 role、client、model glob、stream、max_tokens 做 allow/deny。</small></div>
+      <div class="step"><b>Rate Limit</b><small>Global RPM 或 per-client RPM override，Redis 模式跨 replicas 共用。</small></div>
+      <div class="step"><b>Budget</b><small>Daily / Monthly cost budget gate。</small></div>
+      <div class="step"><b>Route</b><small>alias / pool → priority、round-robin、random 或 cost-aware。</small></div>
+      <div class="step"><b>Resilience</b><small>Retry、Fallback、Circuit Breaker 避免單一 Provider 失敗擴散。</small></div>
+      <div class="step"><b>Respond</b><small>Buffered JSON 或 OpenAI-compatible SSE streaming。</small></div>
+      <div class="step"><b>Record</b><small>Usage、Token、Cost、Prometheus Metrics、OTel Trace、Audit。</small></div>
+      <div class="step"><b>Observe</b><small>Grafana / Prometheus / OTel 提供可視化與後續告警基礎。</small></div>
+    </div>
+  </section>
+
+  <section id="features" class="reveal">
+    <div class="section-head"><div><span class="tag blue">Capability Matrix</span><h2>功能矩陣</h2></div><p>以企業 Gateway 需要的「介面一致性、治理、韌性、身份、安全、可觀測與部署」來整理，而不是只列 framework。</p></div>
+    <div class="table-wrap"><table><thead><tr><th>Domain</th><th>Capability</th><th>v0.5 Implementation</th><th>Evidence</th></tr></thead><tbody>
+      <tr><td>API</td><td>Unified interface</td><td class="yes">OpenAI-compatible /v1/chat/completions</td><td>Buffered + SSE</td></tr>
+      <tr><td>Provider</td><td>Abstraction</td><td class="yes">OpenAI / Anthropic / Gemini / Mock</td><td>BaseProvider adapter contract</td></tr>
+      <tr><td>Routing</td><td>Policy routing</td><td class="yes">priority / round_robin / random / cost</td><td>Aliases + model pools + pricing</td></tr>
+      <tr><td>Resilience</td><td>Failure isolation</td><td class="yes">retry / fallback / circuit breaker</td><td>Distributed circuit state</td></tr>
+      <tr><td>Identity</td><td>Enterprise auth</td><td class="yes">API Key + OIDC/JWT/JWKS</td><td>Issuer / audience / exp / iat / sub validation</td></tr>
+      <tr><td>Authorization</td><td>RBAC</td><td class="yes">viewer / operator / admin</td><td>FastAPI dependencies</td></tr>
+      <tr><td>Policy</td><td>Request policy</td><td class="yes">role / client / model / stream / max_tokens</td><td>Runtime CRUD + Redis</td></tr>
+      <tr><td>Cost</td><td>Governance</td><td class="yes">pricing / usage / daily & monthly budgets</td><td>Prometheus + usage store</td></tr>
+      <tr><td>Streaming</td><td>SSE</td><td class="yes">Mock & OpenAI native progressive</td><td>Anthropic/Gemini normalized fallback</td></tr>
+      <tr><td>State</td><td>Multi-replica</td><td class="yes">Redis distributed backend</td><td>Cross-client integration tests</td></tr>
+      <tr><td>Operations</td><td>Admin control plane</td><td class="yes">Built-in /admin</td><td>policy / clients / rotation / audit</td></tr>
+      <tr><td>Observability</td><td>Metrics / traces</td><td class="yes">Prometheus / Grafana / OpenTelemetry</td><td>/metrics + provisioned dashboard</td></tr>
+      <tr><td>Kubernetes</td><td>Production deployment</td><td class="yes">Helm / PDB / probes / HPA optional</td><td>Helm lint + template in CI</td></tr>
+      <tr><td>Security</td><td>Pod hardening</td><td class="yes">non-root / seccomp / drop ALL / RO FS</td><td>NetworkPolicy optional</td></tr>
+    </tbody></table></div>
+  </section>
+
+  <section id="versions" class="reveal">
+    <div class="section-head"><div><span class="tag violet">Evolution</span><h2>從 API Proxy 演進成 Control Plane</h2></div><p>版本不是「堆功能」，而是沿著企業化路徑逐層解決接口、治理、分散式、管理面與企業身份問題。</p></div>
+    <div class="timeline">
+      <div class="release"><h3>v0.1 · Unified Multi-Provider Gateway</h3><p>Chat Completion、Provider adapters、Alias、Fallback、API Key、Docker、CI。</p></div>
+      <div class="release"><h3>v0.2 · Intelligent Routing & Governance</h3><p>Routing policies、Model pools、Pricing、Retry、Circuit、Budget、Rate limit。</p></div>
+      <div class="release"><h3>v0.3 · Distributed & Observable</h3><p>Redis shared state、Prometheus、OpenTelemetry、Grafana、automatic release。</p></div>
+      <div class="release"><h3>v0.4 · Management Plane</h3><p>Admin Console、Dynamic Governance、Managed Clients、RBAC、Audit、Helm。</p></div>
+      <div class="release current"><h3>v0.5 · Enterprise Identity / Policy / Streaming</h3><p>OIDC/JWT、Request Policy Engine、API Key Rotation、SSE、NetworkPolicy、ServiceMonitor、hardening。</p></div>
+    </div>
+  </section>
+
+  <section id="quickstart" class="reveal">
+    <div class="section-head"><div><span class="tag green">Hands-on</span><h2>快速開始</h2></div><p>同一個專案支援 local development、完整 Docker Compose demo、以及 Helm/Kubernetes 企業部署三種路徑。</p></div>
+    <div class="tabs" data-tabs="start"><button class="tab active" data-tab="local">Local</button><button class="tab" data-tab="compose">Docker Compose</button><button class="tab" data-tab="helm">Helm / Kubernetes</button></div>
+    <div class="tab-panel active" data-panel="local">
+      <div class="codebox"><div class="code-title"><span>Local development</span><button class="copy">Copy</button></div><pre>cp .env.example .env
+python -m venv .venv
+source .venv/bin/activate
+pip install -e ".[dev]"
+uvicorn app.main:app --reload</pre></div>
+      <div class="grid3" style="margin-top:14px"><div class="card"><h3>Swagger UI</h3><p><code>http://localhost:8000/docs</code></p></div><div class="card"><h3>Admin Console</h3><p><code>http://localhost:8000/admin</code></p></div><div class="card"><h3>Metrics</h3><p><code>http://localhost:8000/metrics</code></p></div></div>
+    </div>
+    <div class="tab-panel" data-panel="compose"><div class="codebox"><div class="code-title"><span>Reference observability stack</span><button class="copy">Copy</button></div><pre>cp .env.example .env
+docker compose up --build</pre></div><p class="note" style="margin-top:12px">Compose stack 會啟動 Gateway、Redis、Prometheus、Grafana 與 OpenTelemetry Collector，適合 demo / portfolio walkthrough。</p></div>
+    <div class="tab-panel" data-panel="helm"><div class="codebox"><div class="code-title"><span>Helm validation & install</span><button class="copy">Copy</button></div><pre>helm lint deploy/helm/multi-llm-ai-gateway
+
+helm upgrade --install ai-gateway \
+  deploy/helm/multi-llm-ai-gateway \
+  --set image.repository=&lt;registry&gt;/multi-llm-ai-gateway \
+  --set image.tag=0.5.0</pre></div></div>
+  </section>
+
+  <section id="api" class="reveal">
+    <div class="section-head"><div><span class="tag blue">API Examples</span><h2>常用呼叫方式</h2></div><p>對 Client 保持 OpenAI-compatible，治理資訊則透過 Gateway metadata、headers、Admin API 與 observability surfaces 提供。</p></div>
+    <div class="grid2">
+      <div class="codebox"><div class="code-title"><span>Buffered Chat Completion</span><button class="copy">Copy</button></div><pre>curl http://localhost:8000/v1/chat/completions \
+  -H 'Content-Type: application/json' \
+  -H 'X-API-Key: dev-gateway-key' \
+  -d '{
+    "model":"mock:demo",
+    "messages":[{"role":"user","content":"Hello Gateway"}]
+  }'</pre></div>
+      <div class="codebox"><div class="code-title"><span>SSE Streaming</span><button class="copy">Copy</button></div><pre>curl -N http://localhost:8000/v1/chat/completions \
+  -H 'Content-Type: application/json' \
+  -H 'X-API-Key: dev-gateway-key' \
+  -d '{
+    "model":"mock:demo",
+    "stream":true,
+    "messages":[{"role":"user","content":"Hello stream"}]
+  }'</pre></div>
+      <div class="codebox"><div class="code-title"><span>OIDC Bearer</span><button class="copy">Copy</button></div><pre>curl http://localhost:8000/v1/models \
+  -H "Authorization: Bearer $TOKEN"</pre></div>
+      <div class="codebox"><div class="code-title"><span>Health / Readiness / Metrics</span><button class="copy">Copy</button></div><pre>curl http://localhost:8000/health
+curl http://localhost:8000/ready
+curl http://localhost:8000/metrics</pre></div>
+    </div>
+    <div class="table-wrap" style="margin-top:16px"><table><thead><tr><th>Endpoint</th><th>用途</th><th>Auth</th></tr></thead><tbody>
+      <tr><td><code>POST /v1/chat/completions</code></td><td>Buffered / SSE LLM request</td><td>operator / admin</td></tr>
+      <tr><td><code>GET /v1/providers</code></td><td>Provider + circuit status</td><td>authenticated</td></tr>
+      <tr><td><code>GET /v1/models</code></td><td>Effective governance snapshot</td><td>authenticated</td></tr>
+      <tr><td><code>GET /v1/usage</code></td><td>Usage / token / cost</td><td>authenticated</td></tr>
+      <tr><td><code>GET /v1/budgets</code></td><td>Daily / monthly budget</td><td>authenticated</td></tr>
+      <tr><td><code>GET /admin</code></td><td>Embedded management UI</td><td>UI shell</td></tr>
+      <tr><td><code>/admin/api/*</code></td><td>Governance / clients / audit</td><td>admin</td></tr>
+      <tr><td><code>GET /health</code></td><td>Liveness</td><td>none</td></tr>
+      <tr><td><code>GET /ready</code></td><td>Backend readiness</td><td>none</td></tr>
+      <tr><td><code>GET /metrics</code></td><td>Prometheus exposition</td><td>deployment controls</td></tr>
+    </tbody></table></div>
+  </section>
+
+  <section id="identity" class="reveal">
+    <div class="section-head"><div><span class="tag violet">Identity</span><h2>API Key 與 OIDC/JWT 共存</h2></div><p>v0.5 採漸進式企業導入：既有 API Key 不被破壞，需要企業 Identity 時才啟用 OIDC/JWT。</p></div>
+    <div class="grid3">
+      <div class="card feature"><h3>Bootstrap Keys</h3><p><code>GATEWAY_API_KEY</code> = operator<br><code>ADMIN_API_KEY</code> = admin<br>適合 local / bootstrap。</p></div>
+      <div class="card feature green"><h3>Managed API Clients</h3><p>建立 <code>llmgw_*</code> key，plaintext 只回傳一次；Gateway 僅保留 SHA-256 digest。</p></div>
+      <div class="card feature violet"><h3>OIDC Bearer JWT</h3><p>以 JWKS 驗證 signature，並檢查 issuer、audience、exp、iat、sub，再映射 RBAC role。</p></div>
+    </div>
+    <div class="codebox" style="margin-top:16px"><div class="code-title"><span>OIDC configuration</span><button class="copy">Copy</button></div><pre>OIDC_ISSUER=https://id.example.com/
+OIDC_AUDIENCE=ai-gateway
+OIDC_JWKS_URL=https://id.example.com/.well-known/jwks.json
+OIDC_ROLE_CLAIM=roles
+OIDC_NAME_CLAIM=preferred_username
+OIDC_DEFAULT_ROLE=viewer
+OIDC_ALGORITHMS_CSV=RS256</pre></div>
+    <div class="table-wrap" style="margin-top:16px"><table><thead><tr><th>Role</th><th>Read APIs</th><th>Chat Completion</th><th>Admin APIs</th></tr></thead><tbody><tr><td>viewer</td><td class="yes">Yes</td><td class="no">No</td><td class="no">No</td></tr><tr><td>operator</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="no">No</td></tr><tr><td>admin</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td></tr></tbody></table></div>
+  </section>
+
+  <section id="policy" class="reveal">
+    <div class="section-head"><div><span class="tag amber">Policy Engine</span><h2>模型請求在進 Provider 前就能被阻擋</h2></div><p>Policy 不是模型路由的同義詞，而是治理條件。規則依 priority 排序，第一個符合的 rule 決定 allow / deny 或附加限制。</p></div>
+    <div class="grid2">
+      <div class="card"><h3>Match dimensions</h3><p><span class="tag">roles</span><span class="tag">clients</span><span class="tag">models</span><span class="tag">allow_stream</span><span class="tag">max_tokens</span></p><p style="margin-top:10px">Model 支援 glob pattern，例如 <code>openai:*</code> 或 <code>mock:secret*</code>。</p></div>
+      <div class="card"><h3>Why before routing?</h3><p>先拒絕沒有權限或違反政策的 request，可避免不必要的 upstream cost、降低資料外洩風險，也讓 policy rejection 可被獨立觀測。</p></div>
+    </div>
+    <div class="grid2" style="margin-top:16px">
+      <div class="codebox"><div class="code-title"><span>Deny model family</span><button class="copy">Copy</button></div><pre>curl -X PUT http://localhost:8000/admin/api/policies/block-secret \
+  -H 'X-Admin-Key: dev-admin-key' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "priority":1,
+    "effect":"deny",
+    "models":["mock:secret*"]
+  }'</pre></div>
+      <div class="codebox"><div class="code-title"><span>Deny streaming</span><button class="copy">Copy</button></div><pre>{
+  "priority":10,
+  "effect":"allow",
+  "roles":["operator"],
+  "models":["mock:*"],
+  "allow_stream":false
+}</pre></div>
+    </div>
+  </section>
+
+  <section id="admin" class="reveal">
+    <div class="section-head"><div><span class="tag violet">Management Plane</span><h2>Admin Console 不只是展示頁</h2></div><p><code>/admin</code> 直接提供可操作的 runtime governance，讓面試展示時不用只靠 curl。</p></div>
+    <div class="grid4">
+      <div class="card"><h3>Routing</h3><p>Aliases、Model Pools、Pricing、Default Routing Policy。</p></div>
+      <div class="card"><h3>Policy</h3><p>Effect、Roles、Model glob、Streaming、Max Tokens。</p></div>
+      <div class="card"><h3>Clients</h3><p>Managed API Clients、RBAC、RPM override、Enable/Disable。</p></div>
+      <div class="card"><h3>Security</h3><p>API Key Rotation、one-time plaintext、Audit Log。</p></div>
+    </div>
+    <div class="diagram" style="margin-top:16px;padding:22px">
+      <div style="display:grid;grid-template-columns:1fr auto 1fr auto 1fr;gap:12px;align-items:center;text-align:center">
+        <div class="card" style="background:#142844"><b>Admin Console</b><br><span style="color:var(--muted);font-size:12px">change policy / client / pricing</span></div><div style="color:var(--blue);font-size:24px">→</div>
+        <div class="card" style="background:#17323a"><b>Governance Store</b><br><span style="color:var(--muted);font-size:12px">Memory / Redis</span></div><div style="color:var(--blue);font-size:24px">→</div>
+        <div class="card" style="background:#271f3b"><b>All Gateway Replicas</b><br><span style="color:var(--muted);font-size:12px">effective snapshot per request</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="observability" class="reveal">
+    <div class="section-head"><div><span class="tag green">Observability</span><h2>能治理，也要能證明治理有在工作</h2></div><p>Prometheus metrics + Grafana dashboard + OpenTelemetry trace，讓 routing / rate / budget / policy 的效果可以被量測。</p></div>
+    <div class="grid3">
+      <div class="card"><h3>Prometheus</h3><p><code>llm_gateway_requests_total</code><br><code>llm_gateway_tokens_total</code><br><code>llm_gateway_cost_usd_total</code><br><code>llm_gateway_policy_rejected_total</code></p></div>
+      <div class="card"><h3>Grafana</h3><p>Request rate、P95 latency、Cost、Tokens、Provider attempts、Rate-limit rejects、Policy rejects。</p></div>
+      <div class="card"><h3>OpenTelemetry</h3><p>FastAPI inbound、HTTPX outbound、<code>llm.gateway.route</code>、<code>llm.provider.request</code> spans。</p></div>
+    </div>
+    <div class="skillmap card" style="margin-top:16px">
+      <div class="bar"><b>Routing visibility</b><div class="track"><div class="fill" style="width:92%"></div></div><small>High</small></div>
+      <div class="bar"><b>Cost governance</b><div class="track"><div class="fill" style="width:88%"></div></div><small>High</small></div>
+      <div class="bar"><b>Identity / policy</b><div class="track"><div class="fill" style="width:90%"></div></div><small>High</small></div>
+      <div class="bar"><b>Distributed runtime</b><div class="track"><div class="fill" style="width:86%"></div></div><small>High</small></div>
+      <div class="bar"><b>Provider-native stream</b><div class="track"><div class="fill" style="width:64%"></div></div><small>Partial</small></div>
+    </div>
+  </section>
+
+  <section id="kubernetes" class="reveal">
+    <div class="section-head"><div><span class="tag blue">Deployment</span><h2>Kubernetes / Helm Production Baseline</h2></div><p>Chart 預設不是「能跑就好」，而是把 readiness、PDB、resource、non-root、seccomp、read-only FS 等 production controls 一起帶入。</p></div>
+    <div class="grid2">
+      <div class="card"><h3>Default hardening</h3><p class="yes">✓ 2 replicas<br>✓ /health liveness<br>✓ /ready readiness<br>✓ PDB<br>✓ runAsNonRoot + UID/GID 10001<br>✓ RuntimeDefault seccomp<br>✓ drop ALL capabilities<br>✓ readOnlyRootFilesystem<br>✓ automountServiceAccountToken=false<br>✓ resources requests / limits</p></div>
+      <div class="card"><h3>Optional enterprise integrations</h3><p>HPA、Ingress、NetworkPolicy、Prometheus ServiceMonitor、external Secret、external/managed Redis、OIDC settings。</p></div>
+    </div>
+    <div class="codebox" style="margin-top:16px"><div class="code-title"><span>Render hardened resources in CI</span><button class="copy">Copy</button></div><pre>helm template ai-gateway-hardening deploy/helm/multi-llm-ai-gateway \
+  --set networkPolicy.enabled=true \
+  --set serviceMonitor.enabled=true</pre></div>
+    <div class="interview-only card interview" style="margin-top:16px"><span class="interview-badge">◆ 面試官模式</span><h3>這裡可以談 trade-off</h3><p>NetworkPolicy 預設關閉不是忽略安全，而是避免假設每家公司都有相同 CNI / namespace / ingress topology。Chart 提供 baseline，正式環境再依實際 dependency 收窄 egress/ingress；這是比「寫死一份看起來很安全的 policy」更合理的 production 設計。</p></div>
+  </section>
+
+  <section id="cicd" class="reveal">
+    <div class="section-head"><div><span class="tag green">Delivery Evidence</span><h2>CI / Security / Release Gate</h2></div><p>v0.5.0 不是只把版本號改掉；正式 Release 必須通過 quality + security，才由 GitHub Actions 建立 semantic tag / release。</p></div>
+    <div class="steps" style="grid-template-columns:repeat(4,1fr)">
+      <div class="step"><b>Code Quality</b><small>Ruff + Pytest。v0.5 最終 30 passed。</small></div>
+      <div class="step"><b>Distributed Test</b><small>Real Redis integration，驗證跨 client state / governance / rotation。</small></div>
+      <div class="step"><b>Deployment Test</b><small>Docker build、Compose config、Helm lint、normal + hardened render。</small></div>
+      <div class="step"><b>Security Gate</b><small>Tracked secret rule + pip-audit。</small></div>
+      <div class="step"><b>Release</b><small>GITHUB_TOKEN contents:write，自動建立 v0.5.0 tag / GitHub Release。</small></div>
+      <div class="step"><b>Node 24 Actions</b><small>checkout@v7 / setup-python@v7，消除舊 Node 20 deprecation。</small></div>
+      <div class="step"><b>Idempotent</b><small>Release 已存在時不重複建立。</small></div>
+      <div class="step"><b>Evidence</b><small>Final SHA、CI run、Release target 全部可核對。</small></div>
+    </div>
+    <div class="callout" style="margin-top:16px"><strong>v0.5.0 final evidence：</strong> 30 passed / Ruff ✅ / Docker ✅ / Compose ✅ / Helm ✅ / pip-audit ✅ / Tag ✅ / Release ✅。</div>
+  </section>
+
+  <section id="interview" class="reveal">
+    <div class="section-head"><div><span class="tag violet">Interview View</span><h2>面試官 5 分鐘快速導覽</h2></div><p>如果面試時間有限，建議依「問題 → 架構 → 關鍵決策 → 證據 → trade-off」的順序展示，不要從 README 第一行一路念。</p></div>
+    <div class="grid2">
+      <div class="card interview"><span class="interview-badge">01 · Problem</span><h3>為什麼需要 Gateway？</h3><p>企業同時有 RAG、Agent、內部應用，若每個系統直接綁 OpenAI / Anthropic / Gemini，就會出現 SDK、Credential、Policy、Budget、Fallback 與 Observability 分散問題。</p></div>
+      <div class="card interview"><span class="interview-badge">02 · Architecture</span><h3>怎麼集中治理？</h3><p>使用單一 OpenAI-compatible endpoint，把 Identity → Policy → Rate/Budget → Router → Resilience → Usage/Trace 串成固定 control path。</p></div>
+      <div class="card interview"><span class="interview-badge">03 · Distributed Design</span><h3>怎麼支援多 replicas？</h3><p>把 rate window、round-robin cursor、circuit state、usage/cost、dynamic governance、clients/policies 移到 Redis，並用兩個獨立 Redis clients 做 integration proof。</p></div>
+      <div class="card interview"><span class="interview-badge">04 · Security</span><h3>怎麼做到企業 Identity？</h3><p>API Key 向下相容；OIDC/JWT 可選啟用，驗 signature/JWKS、issuer、audience、exp/iat/sub，再映射 viewer/operator/admin。</p></div>
+      <div class="card interview"><span class="interview-badge">05 · Delivery</span><h3>怎麼證明不是 demo code？</h3><p>30 automated tests、real Redis integration、Docker/Compose/Helm gate、pip-audit、GitHub semantic release、Kubernetes hardening 與 observability。</p></div>
+      <div class="card interview"><span class="interview-badge">Trade-off</span><h3>哪些地方刻意沒有做？</h3><p>不把 RAG、MCP、Agent orchestration 塞進 Gateway；Anthropic/Gemini v0.5 仍是 normalized buffered streaming。清楚保留下一版演進空間。</p></div>
+    </div>
+    <div class="table-wrap" style="margin-top:16px"><table><thead><tr><th>面試能力</th><th>專案證據</th><th>可談重點</th></tr></thead><tbody>
+      <tr><td>System Design</td><td>Data Plane / Management Plane、Provider abstraction</td><td>責任邊界、extension point、failure domain</td></tr>
+      <tr><td>Distributed Systems</td><td>Redis shared state + multi-client tests</td><td>consistency、atomic operation、multi-replica behavior</td></tr>
+      <tr><td>Security</td><td>OIDC/JWT、RBAC、hashed key、rotation、Policy</td><td>identity vs authorization vs policy</td></tr>
+      <tr><td>Platform Engineering</td><td>Helm、PDB、readiness、NetworkPolicy、ServiceMonitor</td><td>production baseline 與環境差異</td></tr>
+      <tr><td>Observability</td><td>Prometheus / Grafana / OTel</td><td>如何知道 routing / policy / cost 是否有效</td></tr>
+      <tr><td>DevSecOps</td><td>CI、pip-audit、secret rule、semantic release</td><td>quality/security gate before release</td></tr>
+    </tbody></table></div>
+  </section>
+
+  <section id="qa" class="reveal qa">
+    <div class="section-head"><div><span class="tag amber">Interview Q&A</span><h2>可能被追問的技術問題</h2></div><p>點擊展開。回答刻意保留 trade-off，不把每個設計包裝成「唯一正解」。</p></div>
+    <details open><summary>Q1. 為什麼不用每個 Application 直接呼叫 LLM Provider？</summary><div>直接呼叫會讓 SDK、Credential、Retry、Fallback、Budget、Policy、Observability 分散到每個 Application。Gateway 讓這些 cross-cutting concerns 集中治理，同時保持 client 端 OpenAI-compatible。</div></details>
+    <details><summary>Q2. Redis 在這裡只是 cache 嗎？</summary><div>不是。v0.5 用它保存 distributed operational state 與 governance state：sliding-window rate limit、round-robin cursor、circuit breaker、usage/budget counters、dynamic aliases/pools/pricing/policies、managed client digests、audit events。</div></details>
+    <details><summary>Q3. Policy Engine 和 Routing Policy 有什麼差？</summary><div><b>Request Policy</b> 決定「這個 Principal 可不可以提出這種 request」；<b>Routing Policy</b> 決定「允許之後，要選哪個 provider:model」。Policy 先於 routing。</div></details>
+    <details><summary>Q4. OIDC JWT 驗證做了哪些事情？</summary><div>透過 JWKS 取得 signing key，限制 algorithms，驗 signature、issuer、audience、<code>exp</code>、<code>iat</code>、<code>sub</code>；再從 configurable claim 映射 Gateway role。OIDC 是 optional，以維持 API key 相容性。</div></details>
+    <details><summary>Q5. 為什麼 API Key 只保存 SHA-256 digest？</summary><div>避免管理介面或 state backend 被讀取時直接暴露 plaintext。Managed key 只在 create / rotate 時回傳一次；rotate 後刪除舊 digest，舊 key 立即失效。</div></details>
+    <details><summary>Q6. Streaming 的成本怎麼記？</summary><div>Gateway 在 stream 完成且 provider 提供 usage metadata 時做 usage/cost finalization。OpenAI native stream 會要求 include_usage；若 upstream 不提供 usage，request 仍記錄，但 token/cost 可能為 zero/unknown。</div></details>
+    <details><summary>Q7. NetworkPolicy 為什麼不是預設開？</summary><div>不同企業的 CNI、Ingress topology、namespace selector、Redis location 不同。Chart 提供 reference baseline 並在 CI render 驗證，但正式環境必須依真實 dependency 收窄，而不是假設一份 policy 適用所有環境。</div></details>
+    <details><summary>Q8. v0.5 最大的已知限制？</summary><div>Anthropic / Gemini 目前透過 common provider contract 提供 normalized buffered stream，不是 native upstream progressive stream；Policy Engine 也是內建 runtime engine，尚未整合 OPA/Cedar 等 external PDP。</div></details>
+  </section>
+
+  <section id="limits" class="reveal">
+    <div class="section-head"><div><span class="tag amber">Trade-offs</span><h2>已知限制與下一步</h2></div><p>Portfolio 專案能清楚說出「沒有做什麼、為什麼、下一步怎麼做」通常比假裝所有問題都已解完更有說服力。</p></div>
+    <div class="grid3">
+      <div class="card"><h3>Native Streaming</h3><p><span class="partial">Current:</span> Mock / OpenAI native；Anthropic / Gemini normalized buffered fallback。<br><b>Next:</b> provider-specific native stream adapters。</p></div>
+      <div class="card"><h3>Policy Federation</h3><p><span class="partial">Current:</span> built-in first-match Policy Engine。<br><b>Next:</b> OPA / Cedar external PDP、policy bundles、decision logs。</p></div>
+      <div class="card"><h3>Enterprise Identity</h3><p><span class="partial">Current:</span> one configured OIDC issuer/JWKS。<br><b>Next:</b> discovery、multi-issuer、groups/claims mapping、workload identity。</p></div>
+      <div class="card"><h3>Multi-tenancy</h3><p><span class="partial">Current:</span> managed clients + per-client RPM。<br><b>Next:</b> tenant quota、chargeback、cost center、tenant model allow-list。</p></div>
+      <div class="card"><h3>Operations</h3><p><span class="partial">Current:</span> Redis readiness + PDB/HPA baseline。<br><b>Next:</b> HA Redis strategy、SLO/SLA、alerts、chaos/failure testing。</p></div>
+      <div class="card"><h3>Scope Discipline</h3><p><span class="yes">Intentional:</span> 不加入 vector DB、document ingestion、MCP server、agent orchestration，保持 Model Control Plane 清晰。</p></div>
+    </div>
+  </section>
+
+  <footer class="footer"><div>Multi-LLM AI Gateway v0.5 · Single-file Portfolio Guide</div><div>Repository: <a href="https://github.com/kewinall/multi-llm-ai-gateway" target="_blank" rel="noreferrer">kewinall/multi-llm-ai-gateway</a></div></footer>
+</main>
+</div>
+<script>
+const root=document.documentElement,body=document.body;
+function toggleTheme(){const next=root.dataset.theme==='light'?'dark':'light';root.dataset.theme=next;localStorage.setItem('mlgw-theme',next)}
+function toggleInterview(){body.classList.toggle('interview-mode');localStorage.setItem('mlgw-interview',body.classList.contains('interview-mode')?'1':'0');if(body.classList.contains('interview-mode'))document.querySelector('#interview').scrollIntoView({behavior:'smooth'})}
+const savedTheme=localStorage.getItem('mlgw-theme');if(savedTheme)root.dataset.theme=savedTheme;else if(matchMedia('(prefers-color-scheme: light)').matches)root.dataset.theme='light';
+if(localStorage.getItem('mlgw-interview')==='1')body.classList.add('interview-mode');
+addEventListener('scroll',()=>{const d=document.documentElement;document.querySelector('#progress').style.width=((d.scrollTop/(d.scrollHeight-d.clientHeight))*100)+'%'});
+const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting)e.target.classList.add('show')}),{threshold:.08});document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
+const sections=[...document.querySelectorAll('main section[id]')],navs=[...document.querySelectorAll('.nav a')];const nio=new IntersectionObserver(es=>{es.forEach(e=>{if(e.isIntersecting){navs.forEach(a=>a.classList.toggle('active',a.getAttribute('href')==='#'+e.target.id))}})},{rootMargin:'-20% 0px -70% 0px'});sections.forEach(s=>nio.observe(s));
+document.querySelectorAll('[data-tabs]').forEach(group=>{group.querySelectorAll('.tab').forEach(btn=>btn.addEventListener('click',()=>{group.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));btn.classList.add('active');const wrap=group.parentElement;wrap.querySelectorAll('.tab-panel').forEach(p=>p.classList.toggle('active',p.dataset.panel===btn.dataset.tab))}))});
+document.querySelectorAll('.copy').forEach(btn=>btn.addEventListener('click',async()=>{const pre=btn.closest('.codebox').querySelector('pre');try{await navigator.clipboard.writeText(pre.innerText);btn.textContent='Copied';btn.classList.add('copied');setTimeout(()=>{btn.textContent='Copy';btn.classList.remove('copied')},1300)}catch(e){btn.textContent='Select manually'}}));
+</script>
+</body>
+</html>
