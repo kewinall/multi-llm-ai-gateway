@@ -5,40 +5,40 @@
       role:"Enterprise Data Engineering Platform",
       focus:"ETL · Audit · Supply Chain · Observability",
       repo:"https://github.com/kewinall/enterprise-etl-platform",
-      order:["interviewer","positioning","architecture","lifecycle","audit","supply","security","observe","quickstart","cicd","versions","repo","interview","demo"],
-      nav:[["Fast Track","interviewer"],["Positioning","positioning"],["Architecture","architecture"],["Core Flow","lifecycle"],["Governance","security"],["Observability","observe"],["Quick Start","quickstart"],["CI / Release","cicd"]]
+      order:["interviewer","engineering-decisions","positioning","architecture","lifecycle","audit","supply","security","observe","quickstart","cicd","versions","repo","interview","demo"],
+      nav:[["Fast Track","interviewer"],["Decisions","engineering-decisions"],["Positioning","positioning"],["Architecture","architecture"],["Core Flow","lifecycle"],["Governance","security"],["Observability","observe"],["Quick Start","quickstart"],["CI / Release","cicd"]]
     },
     "data-platform-mcp-server": {
       index:"02 / 05", title:"Data Platform MCP Server", version:"v0.4.0",
       role:"Tool / Integration Platform",
       focus:"MCP · Metadata · Lineage · Governed Access",
       repo:"https://github.com/kewinall/data-platform-mcp-server",
-      order:["interviewer","architecture","flow","tools","lineage","security","tenant","observability","deploy","airgap","quickstart","cicd","versions","interview","faq","english"],
-      nav:[["Fast Track","interviewer"],["Architecture","architecture"],["Core Flow","flow"],["Capabilities","tools"],["Governance","security"],["Observability","observability"],["Quick Start","quickstart"],["CI / Release","cicd"]]
+      order:["interviewer","engineering-decisions","architecture","flow","tools","lineage","security","tenant","observability","deploy","airgap","quickstart","cicd","versions","interview","faq","english"],
+      nav:[["Fast Track","interviewer"],["Decisions","engineering-decisions"],["Architecture","architecture"],["Core Flow","flow"],["Capabilities","tools"],["Governance","security"],["Observability","observability"],["Quick Start","quickstart"],["CI / Release","cicd"]]
     },
     "agentic-dataops-copilot": {
       index:"03 / 05", title:"Agentic DataOps Copilot", version:"v0.5.0",
       role:"AI Reasoning / DataOps Operations",
       focus:"Triage · RCA · Policy · Human Approval",
       repo:"https://github.com/kewinall/agentic-dataops-copilot",
-      order:["interview","position","architecture","agents","rag","mcp","governance","audit","scenario","quick","api","quality","evolution","qa","roadmap"],
-      nav:[["Fast Track","interview"],["Positioning","position"],["Architecture","architecture"],["Core Flow","agents"],["Governance","governance"],["Audit","audit"],["Quick Start","quick"],["CI / Release","quality"]]
+      order:["interview","engineering-decisions","position","architecture","agents","rag","mcp","governance","audit","scenario","quick","api","quality","evolution","qa","roadmap"],
+      nav:[["Fast Track","interview"],["Decisions","engineering-decisions"],["Positioning","position"],["Architecture","architecture"],["Core Flow","agents"],["Governance","governance"],["Audit","audit"],["Quick Start","quick"],["CI / Release","quality"]]
     },
     "enterprise-rag-platform": {
       index:"04 / 05", title:"Enterprise RAG Platform", version:"v0.6.0",
       role:"Knowledge AI Platform",
       focus:"Hybrid RAG · Citation · Evaluation · Governance",
       repo:"https://github.com/kewinall/enterprise-rag-platform",
-      order:["interview","role","architecture","rag","agent","features","security","evaluation","deploy","api","cicd","evolution","faq"],
-      nav:[["Fast Track","interview"],["Positioning","role"],["Architecture","architecture"],["Core Flow","rag"],["Governance","security"],["Evaluation","evaluation"],["Deploy","deploy"],["CI / Release","cicd"]]
+      order:["interview","engineering-decisions","role","architecture","rag","agent","features","security","evaluation","deploy","api","cicd","evolution","faq"],
+      nav:[["Fast Track","interview"],["Decisions","engineering-decisions"],["Positioning","role"],["Architecture","architecture"],["Core Flow","rag"],["Governance","security"],["Evaluation","evaluation"],["Deploy","deploy"],["CI / Release","cicd"]]
     },
     "multi-llm-ai-gateway": {
       index:"05 / 05", title:"Multi-LLM AI Gateway", version:"v0.5.0",
       role:"Model Control Plane",
       focus:"Routing · Policy · Cost · Observability",
       repo:"https://github.com/kewinall/multi-llm-ai-gateway",
-      order:["interview","positioning","architecture","request-flow","features","identity","policy","admin","observability","kubernetes","quickstart","api","cicd","versions","qa","limits"],
-      nav:[["Fast Track","interview"],["Positioning","positioning"],["Architecture","architecture"],["Core Flow","request-flow"],["Governance","policy"],["Observability","observability"],["Quick Start","quickstart"],["CI / Release","cicd"]]
+      order:["interview","engineering-decisions","positioning","architecture","request-flow","features","identity","policy","admin","observability","kubernetes","quickstart","api","cicd","versions","qa","limits"],
+      nav:[["Fast Track","interview"],["Decisions","engineering-decisions"],["Positioning","positioning"],["Architecture","architecture"],["Core Flow","request-flow"],["Governance","policy"],["Observability","observability"],["Quick Start","quickstart"],["CI / Release","cicd"]]
     }
   };
 
