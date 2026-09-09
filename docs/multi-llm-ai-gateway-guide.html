@@ -109,7 +109,37 @@ section{padding:60px 0 10px;scroll-margin-top:12px}.section-head{display:flex;ju
     </div>
   </section>
 
-  <section id="positioning" class="reveal">
+  <section id="engineering-decisions">
+  <div class="section-head">
+    <div><span class="tag">P1 · Engineering Judgment</span><h2>Engineering Decisions & Production Evidence</h2></div>
+    <p>Gateway 的價值不是「幫你 call 多家 LLM」，而是把 provider dependency、policy、cost、identity、resilience 與 observability 集中成一個可治理 control plane。</p>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px">
+    <div class="card"><h3>Problem</h3><p>如果每個 Application / RAG / Agent 自己整合 provider，routing、fallback、budget、policy、audit 與 metrics 會重複且難以集中治理。</p></div>
+    <div class="card"><h3>Key Decision</h3><p>OpenAI-compatible contract + centralized router + policy/budget gate + Redis shared state，將 model selection 從 application 移到 control plane。</p></div>
+    <div class="card"><h3>Critical-path Awareness</h3><p>Gateway 自己也會成為 critical path，所以需要 replicas、readiness、PDB、distributed state 與 observability，而不是只做 API proxy。</p></div>
+  </div>
+  <div class="table-wrap" style="margin-top:16px"><table>
+    <thead><tr><th>Decision</th><th>Benefit</th><th>Trade-off</th></tr></thead>
+    <tbody>
+      <tr><td>Centralized Model Control Plane</td><td>Routing、resilience、policy、cost 一致治理</td><td>Gateway 變成新的 critical path</td></tr>
+      <tr><td>OpenAI-compatible abstraction</td><td>降低上游 application/provider coupling</td><td>部分 provider-native capability 需 normalization 或無法 1:1 暴露</td></tr>
+      <tr><td>Redis shared state</td><td>Multi-replica 共用 rate、budget、circuit、routing state</td><td>Redis 成為 distributed control dependency</td></tr>
+    </tbody>
+  </table></div>
+  <div class="table-wrap" style="margin-top:16px"><table>
+    <thead><tr><th>Failure Scenario</th><th>Engineering Response</th><th>Evidence</th></tr></thead>
+    <tbody>
+      <tr><td>Provider timeout / 429 / outage</td><td>Retry / fallback / circuit breaker 降低單一 provider failure blast radius</td><td><a href="https://github.com/kewinall/multi-llm-ai-gateway/blob/main/tests/test_router.py">test_router.py</a></td></tr>
+      <tr><td>Redis unavailable</td><td>Cross-replica governance guarantee 不再可信，視為 distributed control dependency incident</td><td><a href="https://github.com/kewinall/multi-llm-ai-gateway/blob/main/tests/test_redis_state.py">test_redis_state.py</a></td></tr>
+      <tr><td>Budget / policy rejection</td><td>在 provider call 前拒絕，避免先產生成本再治理</td><td><a href="https://github.com/kewinall/multi-llm-ai-gateway/blob/main/tests/test_governance.py">test_governance.py</a></td></tr>
+      <tr><td>Invalid OIDC JWT</td><td>Identity gate fail closed，不降級成 anonymous privileged access</td><td><a href="https://github.com/kewinall/multi-llm-ai-gateway/blob/main/tests/test_identity.py">test_identity.py</a></td></tr>
+    </tbody>
+  </table></div>
+  <div class="callout" style="margin-top:16px"><strong>Interview signal：</strong>Model Gateway 不是 vendor proxy，而是 AI runtime 的 policy、resilience、cost 與 identity control plane；同時必須承認它自己就是新的 production dependency。</div>
+</section>
+
+<section id="positioning" class="reveal">
     <div class="section-head"><div><span class="tag violet">Portfolio Boundary</span><h2>作品集中的責任邊界</h2></div><p>這個 Repository 的主角不是 RAG、不是 Agent、也不是 MCP，而是「模型控制平面」。這個邊界讓面試官能一眼看出系統分層與架構意識。</p></div>
     <div class="grid4">
       <div class="card feature"><h3>Multi-LLM AI Gateway</h3><p><b>Model Control Plane</b><br>Routing、Fallback、Streaming、Policy、Identity、Budget / Cost、Observability。</p></div>
