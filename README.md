@@ -1,10 +1,37 @@
 # Multi-LLM AI Gateway
 
-> 企業級多模型 AI Gateway 範例 / Enterprise multi-provider AI gateway reference implementation.
+> **繁體中文**：企業級 **Model Control Plane**，集中處理 Multi-LLM Routing、Fallback、Streaming、Policy、Quota/Cost、Identity 與 Observability。
+>
+> **English**: An enterprise **Model Control Plane** for centralized multi-provider routing, fallback, streaming, policy enforcement, quota/cost governance, identity, and observability.
 
-An **OpenAI-compatible Enterprise AI Gateway** that decouples applications from LLM vendors and
-centralizes routing, resilience, cost governance, streaming, enterprise identity, runtime policy,
-distributed state, observability, and Kubernetes deployment.
+An **OpenAI-compatible Enterprise AI Gateway** that decouples applications from LLM vendors. It intentionally does not implement RAG, MCP tool orchestration, or DataOps reasoning; those responsibilities belong to other portfolio layers.
+
+## Portfolio Role / 作品集角色
+
+**Primary role: Model Control Plane / 模型控制平面**
+
+此 Repository 主要回答：**多個 RAG / Agent / Application 如何透過單一 OpenAI-compatible 入口，使用不同模型供應商，同時受到 Routing、Fallback、Policy、Budget 與 Observability 的集中治理？**  
+This repository primarily answers: **How can multiple applications and agents consume heterogeneous LLM providers through one governed control plane?**
+
+Portfolio responsibility boundary:
+
+- **This repository:** model routing, provider abstraction, resilience, streaming, policy, identity, budget/cost, distributed gateway state, observability.
+- [Enterprise RAG Platform](https://github.com/kewinall/enterprise-rag-platform): enterprise knowledge ingestion, retrieval, grounding, citations, and evaluation.
+- [Agentic DataOps Copilot](https://github.com/kewinall/agentic-dataops-copilot): incident reasoning and governed DataOps operations.
+- [Data Platform MCP Server](https://github.com/kewinall/data-platform-mcp-server): standardized MCP tool and data-platform integration layer.
+
+**Intentional scope boundary:** no vector database, document ingestion, RAG pipeline, MCP server, or agent orchestration is added here.
+
+## Reference Integration / 參考整合
+
+    Enterprise RAG Platform --------+
+                                    |
+    Agentic DataOps Copilot --------+--> Multi-LLM AI Gateway
+                                    |          |
+    Other AI Applications ----------+          +--> OpenAI
+                                               +--> Anthropic
+                                               +--> Gemini
+                                               +--> Local / Other
 
 ## v0.5 Features
 
@@ -287,7 +314,7 @@ Version change
 - **v0.3** — Redis distributed state, Prometheus, OpenTelemetry, Grafana
 - **v0.4** — Admin Console, runtime governance, client RBAC, Helm
 - **v0.5** — streaming, OIDC/JWT, request policies, key rotation, Kubernetes hardening
-- **v0.6** — deeper provider-native streaming, external policy/identity integration, HA operations
+- **v0.6** — deeper provider-native streaming, external policy/identity integration, HA operations while remaining strictly focused on the model-control plane
 
 ## 專案定位 / Project positioning
 
