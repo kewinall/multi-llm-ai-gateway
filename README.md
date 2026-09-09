@@ -27,6 +27,53 @@ Portfolio responsibility boundary:
 
 **Intentional scope boundary:** no vector database, document ingestion, RAG pipeline, MCP server, or agent orchestration is added here.
 
+## Engineering Decisions & Production Evidence
+
+### Problem
+
+如果每個 Application / RAG / Agent 都直接整合 OpenAI、Anthropic、Gemini 或其他 provider，**identity、routing、fallback、rate limit、budget、cost、policy、audit 與 observability** 會被複製到每個應用。這不只增加維護成本，也讓 provider outage 或 cost spike 難以集中控制。
+
+### Key Engineering Decisions & Trade-offs
+
+| Decision | Why / Benefit | Trade-off |
+|---|---|---|
+| **Centralized Model Control Plane** | 將 provider selection、resilience、policy、cost 與 observability 集中治理 | Gateway 本身成為新的 critical path，需要 HA、capacity 與 operational ownership |
+| **OpenAI-compatible client contract** | 上游 application 可降低 provider coupling，切換 routing 不需要大量改 client | Provider-specific advanced capability 可能需要 normalization 或無法 1:1 暴露 |
+| **Routing + Retry + Fallback + Circuit Breaker** | 單一 provider outage / 429 不必直接擴散到所有 client | 多 provider 行為差異會增加 error normalization、streaming 與 test matrix |
+| **Redis shared governance state** | Multi-replica 之間共享 rate limit、round-robin cursor、circuit、usage/budget state | Redis 成為 distributed control dependency，需要 HA 與 failure semantics |
+| **Policy / Budget 在 provider call 之前 gate** | 不合規或超預算 request 在產生成本前就被拒絕 | Policy / pricing / quota configuration 錯誤會影響所有 clients，需嚴格 change control |
+
+### Production Failure & Recovery
+
+| Scenario | Engineering Behavior / Detection | Recovery Strategy |
+|---|---|---|
+| Provider timeout / 429 / outage | Retry / fallback / circuit breaker 防止單一 provider failure 直接擴散 | 由 router 選擇可用 provider；恢復後 circuit state 再納回 routing |
+| Budget exceeded | Request 在 provider call 前被 budget gate 拒絕 | 調整 budget / pricing / client policy，或等待 budget window reset |
+| Invalid / expired OIDC JWT | Identity gate 拒絕 request，不應 fallback 成 anonymous privileged access | 更新 token / IdP configuration；維持 fail-closed |
+| Redis unavailable | Cross-replica governance guarantee 不再可信，應視為 distributed control dependency incident | 恢復 Redis/HA backend；在恢復前不要假設 rate/budget/circuit state 跨 replicas 一致 |
+| Gateway pod failure | Kubernetes readiness / replicas / PDB 降低單 pod failure 影響 | 由 Service 導向健康 replica，修復或重新排程失敗 pod |
+| SSE stream 中斷 | Client 可觀察 incomplete stream；Gateway 必須保持 provider/request evidence 可追蹤 | 根據 idempotency / application semantics 決定重試，不把 partial response 當 complete |
+
+### Production Evidence
+
+| Claim | Repository Evidence |
+|---|---|
+| Routing / fallback behavior 有 regression tests | `tests/test_router.py` |
+| Redis distributed state 有 integration tests | `tests/test_redis_state.py` |
+| Budget / policy / runtime governance 有測試 | `tests/test_governance.py`, `app/budget.py`, `app/policy.py`, `app/rate_limit.py` |
+| OIDC / identity boundary 有測試 | `tests/test_identity.py`, `app/security.py` |
+| Kubernetes HA / hardening baseline | `deploy/helm/multi-llm-ai-gateway/`, `.github/workflows/ci.yml` |
+| Observability implementation | `app/observability.py`, `docs/observability.md` |
+
+### Interview Questions This Project Can Answer
+
+- 為什麼 application 不直接 call provider API？
+- Gateway 變成 critical path，怎麼避免它成為新的單點？
+- Redis 掛掉時，哪些 guarantee 會失效？
+- Cost-aware routing 與品質 / latency routing 之間如何取捨？
+- OpenAI-compatible abstraction 會犧牲哪些 provider-native capability？
+
+
 ## Reference Integration / 參考整合
 
     Enterprise RAG Platform --------+
