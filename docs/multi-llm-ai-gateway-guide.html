@@ -51,7 +51,7 @@ section{padding:60px 0 10px;scroll-margin-top:12px}.section-head{display:flex;ju
 @media(max-width:560px){h1{font-size:43px}.kpis,.grid4,.steps{grid-template-columns:1fr 1fr}.lead{font-size:17px}.main{padding-left:14px;padding-right:14px}.card{padding:16px}.kpi b{font-size:20px}.hero-actions .btn{width:100%}.bar{grid-template-columns:1fr}.bar small{text-align:left}.footer{display:block}}
 @media print{.side,.mobile-top,#progress,.hero-actions,.copy,.interview-toggle,.theme-toggle{display:none!important}.shell{display:block}.main{padding:0;max-width:none}.hero{min-height:auto;padding:30px 0}.reveal{opacity:1!important;transform:none!important}body{background:white;color:#111}.card,.table-wrap,.diagram,.codebox{break-inside:avoid;box-shadow:none}.interview-only{display:block!important}}
 </style>
-<link rel="stylesheet" href="https://kewinall.github.io/kewinall/assets/portfolio-guide.css?v=1.0">
+<link rel="stylesheet" href="./assets/portfolio-guide.css?v=1.0">
 </head>
 <body>
 <div id="progress"></div>
@@ -422,6 +422,6 @@ const sections=[...document.querySelectorAll('main section[id]')],navs=[...docum
 document.querySelectorAll('[data-tabs]').forEach(group=>{group.querySelectorAll('.tab').forEach(btn=>btn.addEventListener('click',()=>{group.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));btn.classList.add('active');const wrap=group.parentElement;wrap.querySelectorAll('.tab-panel').forEach(p=>p.classList.toggle('active',p.dataset.panel===btn.dataset.tab))}))});
 document.querySelectorAll('.copy').forEach(btn=>btn.addEventListener('click',async()=>{const pre=btn.closest('.codebox').querySelector('pre');try{await navigator.clipboard.writeText(pre.innerText);btn.textContent='Copied';btn.classList.add('copied');setTimeout(()=>{btn.textContent='Copy';btn.classList.remove('copied')},1300)}catch(e){btn.textContent='Select manually'}}));
 </script>
-<script defer src="https://kewinall.github.io/kewinall/assets/portfolio-guide.js?v=1.0"></script>
+<script defer src="./assets/portfolio-guide.js?v=1.0"></script>
 </body>
 </html>
