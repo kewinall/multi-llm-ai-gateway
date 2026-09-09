@@ -1,5 +1,10 @@
 # Multi-LLM AI Gateway
 
+**目前版本 / Current release: v0.5.0**
+
+> **📘 Interactive Project Guide / 專案互動式說明文件**  
+> [Open the single-file HTML guide](docs/multi-llm-ai-gateway-guide.html) — 架構、Request Lifecycle、Multi-LLM Routing、Streaming、OIDC/RBAC、Policy、Cost Governance、Observability、Kubernetes/Helm、CI/Security、版本演進與面試官速讀集中於單一自包含 HTML。
+
 > **繁體中文**：企業級 **Model Control Plane**，集中處理 Multi-LLM Routing、Fallback、Streaming、Policy、Quota/Cost、Identity 與 Observability。
 >
 > **English**: An enterprise **Model Control Plane** for centralized multi-provider routing, fallback, streaming, policy enforcement, quota/cost governance, identity, and observability.
@@ -276,6 +281,7 @@ Chart capabilities include:
 
 ## Documentation
 
+- [Interactive Project Guide / 專案互動式說明文件](docs/multi-llm-ai-gateway-guide.html)
 - [Architecture](docs/architecture.md)
 - [Configuration](docs/configuration.md)
 - [Streaming](docs/streaming.md)
