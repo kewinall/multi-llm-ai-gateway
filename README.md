@@ -1,31 +1,31 @@
 # Multi-LLM AI Gateway
 
-**Current release: v0.5.0**
+**目前版本：v0.5.0**
 
-> **Interactive architecture & project overview**  
-> [Live GitHub Pages](https://kewinall.github.io/multi-llm-ai-gateway/) · [Repository HTML](docs/multi-llm-ai-gateway-guide.html)
+> **互動式架構與專案總覽**  
+> [GitHub Pages](https://kewinall.github.io/multi-llm-ai-gateway/) · [Repository HTML](docs/multi-llm-ai-gateway-guide.html)
 
-Enterprise **Model Control Plane** providing a centralized OpenAI-compatible gateway for multi-provider routing, resilience, streaming, policy, identity, quota/cost governance, and observability.
+這是一套企業級 **Model Control Plane**，透過 centralized OpenAI-compatible Gateway 統一處理 multi-provider routing、resilience、streaming、policy、identity、quota / cost governance 與 observability。
 
-## Engineering Scope
+## 專案定位
 
-This repository owns the **model access and governance layer**:
+本 Repository 負責 Portfolio 中的 **Model Access and Governance Layer**：
 
 - provider abstraction
-- model routing and fallback
-- retry and circuit breaking
+- model routing 與 fallback
+- retry 與 circuit breaker
 - OpenAI-compatible streaming
-- identity and RBAC
+- identity 與 RBAC
 - request policy
 - rate limiting
 - token / cost accounting
-- daily and monthly budget enforcement
+- daily / monthly budget enforcement
 - shared distributed governance state
-- metrics, traces and audit events
+- metrics、traces 與 audit events
 
-It intentionally does not implement RAG, MCP tool orchestration, ETL intelligence, or DataOps reasoning.
+本專案刻意不實作 RAG、MCP tool orchestration、ETL intelligence 或 DataOps reasoning。
 
-## Architecture
+## 架構
 
 ```text
                 Enterprise Identity
@@ -56,44 +56,44 @@ Client / RAG / Agent -> Policy Engine
        Redis      Prometheus      OTEL
 ```
 
-## Core Capabilities
+## 核心能力
 
 - `POST /v1/chat/completions`
 - OpenAI-compatible SSE streaming
-- OpenAI, Anthropic, Google Gemini and Mock providers
-- priority, round-robin, random and cost-aware routing
-- retry, fallback and circuit breaker
-- runtime aliases, pools, pricing and routing policy
-- managed API clients and API-key rotation
+- OpenAI、Anthropic、Google Gemini 與 Mock providers
+- priority、round-robin、random、cost-aware routing
+- retry、fallback、circuit breaker
+- runtime aliases、pools、pricing 與 routing policy
+- managed API clients 與 API-key rotation
 - optional OIDC/JWT bearer authentication
 - JWKS signature / issuer / audience / expiry validation
-- RBAC: `viewer`, `operator`, `admin`
+- RBAC：`viewer`、`operator`、`admin`
 - Runtime Policy Engine
-- daily/monthly budget enforcement
-- Redis shared state for multi-replica governance
-- Prometheus, OpenTelemetry and Grafana integration
-- Helm chart and Kubernetes hardening baseline
+- daily / monthly budget enforcement
+- Redis shared state，支援 multi-replica governance
+- Prometheus、OpenTelemetry、Grafana integration
+- Helm chart 與 Kubernetes hardening baseline
 
-## Key Engineering Decisions
+## 關鍵工程決策
 
-| Decision | Rationale | Trade-off |
+| 決策 | 原因 / 效益 | Trade-off |
 |---|---|---|
-| Centralized model control plane | Avoids duplicating routing, identity, cost and policy logic in every AI application | Gateway becomes a critical platform dependency |
-| OpenAI-compatible contract | Reduces client/provider coupling | Provider-native features may require normalization |
-| Retry + fallback + circuit breaker | Limits propagation of provider outage / 429 failures | Expands provider-specific test matrix |
-| Redis shared governance state | Keeps rate, budget and circuit state coherent across replicas | Redis becomes a distributed-control dependency |
-| Policy / budget before provider call | Rejects non-compliant or over-budget requests before cost is incurred | Misconfigured global policy can affect many clients |
+| Centralized Model Control Plane | 避免每個 AI application 重複實作 routing、identity、cost 與 policy | Gateway 成為重要 platform dependency |
+| OpenAI-compatible contract | 降低 client / provider coupling | Provider-native feature 可能需要 normalization |
+| Retry + fallback + circuit breaker | 降低 provider outage / 429 向上游擴散 | 增加 provider-specific test matrix |
+| Redis shared governance state | 讓 replicas 間的 rate、budget、circuit state 保持一致 | Redis 成為 distributed-control dependency |
+| Provider call 前執行 policy / budget gate | 在產生成本前拒絕不合規或超預算 request | Global policy 設定錯誤可能同時影響多個 client |
 
-## Failure Semantics
+## 失敗語意與復原原則
 
-- provider timeout / 429 / outage can trigger retry, fallback and circuit behavior
-- invalid or expired OIDC credentials fail closed
-- budget rejection occurs before provider invocation
-- Redis loss means cross-replica governance guarantees can no longer be assumed
-- pod failures are handled through Kubernetes replicas/readiness/PDB
-- interrupted SSE streams remain incomplete and must not be treated as successful full responses
+- provider timeout / 429 / outage 可觸發 retry、fallback 與 circuit behavior
+- invalid / expired OIDC credential 採 fail closed
+- budget rejection 發生在 provider invocation 之前
+- Redis unavailable 時，不再假設 cross-replica governance guarantee 仍然成立
+- pod failure 透過 Kubernetes replicas / readiness / PDB 降低影響
+- SSE stream 中斷時維持 incomplete，不可當作完整成功 response
 
-## Production Evidence
+## 可驗證 Evidence
 
 | Claim | Repository Evidence |
 |---|---|
@@ -104,7 +104,7 @@ Client / RAG / Agent -> Policy Engine
 | Kubernetes HA / hardening | `deploy/helm/multi-llm-ai-gateway/`, `.github/workflows/ci.yml` |
 | Observability | `app/observability.py`, `docs/observability.md` |
 
-## Quick Start
+## 快速開始
 
 ```bash
 cp .env.example .env
@@ -114,16 +114,16 @@ pip install -e ".[dev]"
 uvicorn app.main:app --reload
 ```
 
-Default local bootstrap credentials:
+預設 local bootstrap credentials：
 
 ```text
 X-API-Key:   dev-gateway-key
 X-Admin-Key: dev-admin-key
 ```
 
-Local surfaces:
+Local surfaces：
 
-| Surface | URL |
+| 介面 | URL |
 |---|---|
 | Swagger UI | `http://localhost:8000/docs` |
 | Admin Console | `http://localhost:8000/admin` |
@@ -131,7 +131,7 @@ Local surfaces:
 | Readiness | `http://localhost:8000/ready` |
 | Metrics | `http://localhost:8000/metrics` |
 
-## Example Streaming Request
+## Streaming Request 範例
 
 ```bash
 curl -N http://localhost:8000/v1/chat/completions \
@@ -144,14 +144,14 @@ curl -N http://localhost:8000/v1/chat/completions \
   }'
 ```
 
-## Portfolio Boundary
+## Portfolio 責任邊界
 
-- **Multi-LLM AI Gateway:** model routing, provider resilience, policy, identity and cost governance
-- **Enterprise RAG Platform:** knowledge ingestion, retrieval, grounding and evaluation
-- **Agentic DataOps Copilot:** operational reasoning and governed remediation
-- **Data Platform MCP Server:** standardized data/tool integration contracts
-- **Enterprise ETL Platform:** ETL modernization, metadata, lineage and runtime lifecycle
+- **Multi-LLM AI Gateway**：model routing、provider resilience、policy、identity、cost governance
+- **Enterprise RAG Platform**：knowledge ingestion、retrieval、grounding、evaluation
+- **Agentic DataOps Copilot**：operational reasoning 與 governed remediation
+- **Data Platform MCP Server**：standardized data / tool integration contracts
+- **Enterprise ETL Platform**：ETL modernization、metadata、lineage、runtime lifecycle
 
-## License
+## 授權
 
 MIT
