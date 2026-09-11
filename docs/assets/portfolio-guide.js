@@ -1,172 +1,22 @@
 (() => {
-  const configs = {
-    "enterprise-etl-platform": {
-      index:"01 / 05", title:"Enterprise ETL Platform", version:"v0.5.0",
-      role:"Enterprise Data Engineering Platform",
-      focus:"ETL · Audit · Supply Chain · Observability",
-      repo:"https://github.com/kewinall/enterprise-etl-platform",
-      order:["interviewer","engineering-decisions","positioning","architecture","lifecycle","audit","supply","security","observe","quickstart","cicd","versions","repo","interview","demo"],
-      nav:[["Fast Track","interviewer"],["Decisions","engineering-decisions"],["Positioning","positioning"],["Architecture","architecture"],["Core Flow","lifecycle"],["Governance","security"],["Observability","observe"],["Quick Start","quickstart"],["CI / Release","cicd"]]
-    },
-    "data-platform-mcp-server": {
-      index:"02 / 05", title:"Data Platform MCP Server", version:"v0.4.0",
-      role:"Tool / Integration Platform",
-      focus:"MCP · Metadata · Lineage · Governed Access",
-      repo:"https://github.com/kewinall/data-platform-mcp-server",
-      order:["interviewer","engineering-decisions","architecture","flow","tools","lineage","security","tenant","observability","deploy","airgap","quickstart","cicd","versions","interview","faq","english"],
-      nav:[["Fast Track","interviewer"],["Decisions","engineering-decisions"],["Architecture","architecture"],["Core Flow","flow"],["Capabilities","tools"],["Governance","security"],["Observability","observability"],["Quick Start","quickstart"],["CI / Release","cicd"]]
-    },
-    "agentic-dataops-copilot": {
-      index:"03 / 05", title:"Agentic DataOps Copilot", version:"v0.5.0",
-      role:"AI Reasoning / DataOps Operations",
-      focus:"Triage · RCA · Policy · Human Approval",
-      repo:"https://github.com/kewinall/agentic-dataops-copilot",
-      order:["interview","engineering-decisions","position","architecture","agents","rag","mcp","governance","audit","scenario","quick","api","quality","evolution","qa","roadmap"],
-      nav:[["Fast Track","interview"],["Decisions","engineering-decisions"],["Positioning","position"],["Architecture","architecture"],["Core Flow","agents"],["Governance","governance"],["Audit","audit"],["Quick Start","quick"],["CI / Release","quality"]]
-    },
-    "enterprise-rag-platform": {
-      index:"04 / 05", title:"Enterprise RAG Platform", version:"v0.6.0",
-      role:"Knowledge AI Platform",
-      focus:"Hybrid RAG · Citation · Evaluation · Governance",
-      repo:"https://github.com/kewinall/enterprise-rag-platform",
-      order:["interview","engineering-decisions","role","architecture","rag","agent","features","security","evaluation","deploy","api","cicd","evolution","faq"],
-      nav:[["Fast Track","interview"],["Decisions","engineering-decisions"],["Positioning","role"],["Architecture","architecture"],["Core Flow","rag"],["Governance","security"],["Evaluation","evaluation"],["Deploy","deploy"],["CI / Release","cicd"]]
-    },
-    "multi-llm-ai-gateway": {
-      index:"05 / 05", title:"Multi-LLM AI Gateway", version:"v0.5.0",
-      role:"Model Control Plane",
-      focus:"Routing · Policy · Cost · Observability",
-      repo:"https://github.com/kewinall/multi-llm-ai-gateway",
-      order:["interview","engineering-decisions","positioning","architecture","request-flow","features","identity","policy","admin","observability","kubernetes","quickstart","api","cicd","versions","qa","limits"],
-      nav:[["Fast Track","interview"],["Decisions","engineering-decisions"],["Positioning","positioning"],["Architecture","architecture"],["Core Flow","request-flow"],["Governance","policy"],["Observability","observability"],["Quick Start","quickstart"],["CI / Release","cicd"]]
-    }
+  const configs={
+    "enterprise-etl-platform":{index:"01 / 05",title:"Enterprise ETL Platform",version:"v0.8.0",role:"Enterprise Data Engineering Platform",focus:"ETL · Audit · Supply Chain · Observability",repo:"https://github.com/kewinall/enterprise-etl-platform",order:["interviewer","engineering-decisions","positioning","architecture","lifecycle","modernization","evaluation","audit","supply","security","intelligence","delivery","observe","quickstart","cicd","versions","repo"],hidden:["interview","demo"],nav:[["快速導覽","interviewer"],["工程決策","engineering-decisions"],["作品集定位","positioning"],["架構","architecture"],["核心流程","lifecycle"],["治理與安全","security"],["可觀測性","observe"],["快速開始","quickstart"],["CI / Release","cicd"]]},
+    "data-platform-mcp-server":{index:"02 / 05",title:"Data Platform MCP Server",version:"v0.5.0",role:"Tool / Integration Platform",focus:"MCP · Metadata · Lineage · Governed Access",repo:"https://github.com/kewinall/data-platform-mcp-server",order:["interviewer","engineering-decisions","architecture","flow","tools","lineage","security","tenant","observability","deploy","airgap","quickstart","cicd","versions","faq"],hidden:["interview","english"],nav:[["快速導覽","interviewer"],["工程決策","engineering-decisions"],["架構","architecture"],["核心流程","flow"],["核心能力","tools"],["治理與安全","security"],["可觀測性","observability"],["快速開始","quickstart"],["CI / Release","cicd"]]},
+    "agentic-dataops-copilot":{index:"03 / 05",title:"Agentic DataOps Copilot",version:"v0.5.0",role:"AI Reasoning / DataOps Operations",focus:"Triage · RCA · Policy · Human Approval",repo:"https://github.com/kewinall/agentic-dataops-copilot",order:["interview","engineering-decisions","position","architecture","agents","rag","mcp","governance","audit","scenario","quick","api","quality","evolution","roadmap"],hidden:["qa"],nav:[["快速導覽","interview"],["工程決策","engineering-decisions"],["作品集定位","position"],["架構","architecture"],["核心流程","agents"],["治理與安全","governance"],["稽核","audit"],["快速開始","quick"],["CI / Release","quality"]]},
+    "enterprise-rag-platform":{index:"04 / 05",title:"Enterprise RAG Platform",version:"v0.6.0",role:"Knowledge AI Platform",focus:"Hybrid RAG · Citation · Evaluation · Governance",repo:"https://github.com/kewinall/enterprise-rag-platform",order:["interview","engineering-decisions","role","architecture","rag","agent","features","security","evaluation","deploy","api","cicd","evolution","faq"],hidden:[],nav:[["快速導覽","interview"],["工程決策","engineering-decisions"],["作品集定位","role"],["架構","architecture"],["核心流程","rag"],["治理與安全","security"],["Evaluation","evaluation"],["部署","deploy"],["CI / Release","cicd"]]},
+    "multi-llm-ai-gateway":{index:"05 / 05",title:"Multi-LLM AI Gateway",version:"v0.5.0",role:"Model Control Plane",focus:"Routing · Policy · Cost · Observability",repo:"https://github.com/kewinall/multi-llm-ai-gateway",order:["interview","engineering-decisions","positioning","architecture","request-flow","features","identity","policy","admin","observability","kubernetes","quickstart","api","cicd","versions","limits"],hidden:["qa"],nav:[["快速導覽","interview"],["工程決策","engineering-decisions"],["作品集定位","positioning"],["架構","architecture"],["核心流程","request-flow"],["治理與安全","policy"],["可觀測性","observability"],["快速開始","quickstart"],["CI / Release","cicd"]]}
   };
-
-  const slug = location.pathname.split("/").filter(Boolean)[0] || "";
-  const cfg = configs[slug];
-  if (!cfg) return;
-
-  const init = () => {
-    document.body.classList.add("pg-unified");
-    applyStoredTheme();
-    createTopbar(cfg);
-    normalizeLayout(cfg);
-    createSummary(cfg);
-    reorderSections(cfg);
-    decorateSections();
-    createFooter(cfg);
-  };
-
-  function applyStoredTheme(){
-    const saved = localStorage.getItem("kewinall-portfolio-theme") || "dark";
-    document.documentElement.setAttribute("data-pg-theme", saved);
-    document.documentElement.setAttribute("data-theme", saved);
-  }
-
-  function toggleTheme(){
-    const current = document.documentElement.getAttribute("data-pg-theme") || "dark";
-    const next = current === "dark" ? "light" : "dark";
-    document.documentElement.setAttribute("data-pg-theme", next);
-    document.documentElement.setAttribute("data-theme", next);
-    localStorage.setItem("kewinall-portfolio-theme", next);
-  }
-
-  function createTopbar(cfg){
-    document.getElementById("pgTopbar")?.remove();
-    const header = document.createElement("header");
-    header.id = "pgTopbar";
-    const navLinks = cfg.nav
-      .filter(([,id]) => document.getElementById(id))
-      .map(([label,id]) => `<a href="#${id}">${label}</a>`)
-      .join("");
-    header.innerHTML = `
-      <div class="pg-nav-inner">
-        <a class="pg-brand" href="https://kewinall.github.io/kewinall/">
-          <i class="pg-dot"></i>
-          <span class="pg-title">${cfg.title}<small>Portfolio ${cfg.index} · ${cfg.role}</small></span>
-        </a>
-        <nav class="pg-links">${navLinks}</nav>
-        <div class="pg-actions">
-          <button id="pgThemeBtn" type="button">Theme</button>
-          <a class="pg-action pg-hide-mobile" href="${cfg.repo}">GitHub</a>
-          <a class="pg-action primary" href="https://kewinall.github.io/kewinall/">Portfolio</a>
-        </div>
-      </div>`;
-    document.body.prepend(header);
-    header.querySelector("#pgThemeBtn").addEventListener("click", toggleTheme);
-  }
-
-  function normalizeLayout(){
-    const shell = document.querySelector(".shell");
-    if (shell) shell.style.display = "block";
-    const layout = document.querySelector(".layout");
-    if (layout) layout.style.display = "block";
-  }
-
-  function findHero(){
-    return document.querySelector("section.hero") ||
-      document.querySelector("section#overview") ||
-      document.querySelector("section#top") ||
-      document.querySelector("section#cover");
-  }
-
-  function createSummary(cfg){
-    document.querySelector(".pg-summary")?.remove();
-    const summary = document.createElement("div");
-    summary.className = "pg-summary";
-    summary.innerHTML = `
-      <div class="pg-summary-item"><span>Portfolio</span><strong>${cfg.index}</strong></div>
-      <div class="pg-summary-item"><span>Primary Role</span><strong>${cfg.role}</strong></div>
-      <div class="pg-summary-item"><span>Release</span><strong>${cfg.version}</strong></div>
-      <div class="pg-summary-item"><span>Engineering Focus</span><strong>${cfg.focus}</strong></div>`;
-    const hero = findHero();
-    if (hero) hero.insertAdjacentElement("afterend", summary);
-    else (document.querySelector("main") || document.body).prepend(summary);
-  }
-
-  function reorderSections(cfg){
-    const all = [...document.querySelectorAll("section")];
-    const hero = findHero();
-    const sections = all.filter(s => s !== hero);
-    if (!sections.length) return;
-
-    const host = sections[0].closest("main") || document.querySelector("main") || sections[0].parentElement;
-    let stack = document.getElementById("pgSectionStack");
-    if (!stack){
-      stack = document.createElement("div");
-      stack.id = "pgSectionStack";
-      host.insertBefore(stack, sections[0]);
-    }
-
-    const used = new Set();
-    cfg.order.forEach(id => {
-      const el = document.getElementById(id);
-      if (el && el.tagName.toLowerCase() === "section"){
-        stack.appendChild(el);
-        used.add(el);
-      }
-    });
-    sections.filter(s => !used.has(s)).forEach(s => stack.appendChild(s));
-  }
-
-  function decorateSections(){
-    const sections = [...document.querySelectorAll("#pgSectionStack > section")];
-    sections.forEach((section, i) => {
-      section.dataset.pgIndex = String(i + 1).padStart(2,"0");
-    });
-  }
-
-  function createFooter(cfg){
-    document.getElementById("pgFooter")?.remove();
-    const footer = document.createElement("footer");
-    footer.id = "pgFooter";
-    footer.innerHTML = `
-      <div><strong>${cfg.title}</strong><br>${cfg.role} · ${cfg.version}</div>
-      <div>Production-oriented · Governed · Observable · Auditable</div>
-      <div><a href="https://kewinall.github.io/kewinall/">Back to Portfolio</a> · <a href="${cfg.repo}">GitHub Repository</a></div>`;
-    document.body.appendChild(footer);
-  }
-
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
-  else init();
+  const slug=location.pathname.split("/").filter(Boolean)[0]||"",cfg=configs[slug];if(!cfg)return;
+  const init=()=>{document.documentElement.lang="zh-Hant";document.body.classList.add("pg-unified");theme();(cfg.hidden||[]).forEach(id=>document.getElementById(id)?.remove());document.querySelectorAll("p").forEach(p=>{const s=p.querySelector(":scope > strong:first-child");if(s&&/^English\s*[:：]?$/i.test(s.textContent.trim()))p.remove();});localize();topbar();normalize();summary();reorder();decorate();footer();};
+  function theme(){const s=localStorage.getItem("kewinall-portfolio-theme")||"dark";document.documentElement.setAttribute("data-pg-theme",s);document.documentElement.setAttribute("data-theme",s);}
+  function toggle(){const c=document.documentElement.getAttribute("data-pg-theme")||"dark",n=c==="dark"?"light":"dark";document.documentElement.setAttribute("data-pg-theme",n);document.documentElement.setAttribute("data-theme",n);localStorage.setItem("kewinall-portfolio-theme",n);}
+  function localize(){const m=new Map([["Theme","主題"],["Print / PDF","列印 / PDF"],["Copy","複製"],["Copied","已複製"],["Problem","問題"],["Architecture","架構"],["Proof","驗證證據"],["Key Decision","關鍵決策"],["Production Principle","Production 原則"],["Decision","決策"],["Benefit","效益"],["Failure Scenario","失敗情境"],["Engineering Response","工程處理"],["Question","問題"],["Boundary","邊界"],["Interpretation","解讀"],["Retry Scenario","Retry 情境"],["PostgreSQL Audit Identity","PostgreSQL Audit 識別資訊"],["Controlled Access","受治理存取"],["Enterprise AI Path","Enterprise AI 路徑"],["Portfolio story","Portfolio 故事"],["Portfolio Role","作品集定位"],["Primary Role","主要定位"],["Engineering Focus","工程重點"],["Engineering maturity versions","工程成熟度版本"],["Synthetic ETL AI evaluation cases","Synthetic ETL AI 評測案例"],["Success SLO baseline","Success SLO 基準"],["Offline release assets","離線 Release assets"],["Interviewer Fast Track","面試官快速導覽"],["Engineering Judgment","工程判斷"],["Portfolio Positioning","作品集定位"],["End-to-End Architecture","端到端架構"],["Repository Map","Repository 導覽"],["Project status","專案狀態"],["No rebuild between TEST and PROD","TEST 與 PROD 之間不重新 Build"],["CI removes local references → docker load offline archive → verifies same image ID","CI 移除本地 reference → docker load 離線 archive → 驗證同一 image ID"],["All sample data, hostnames, credentials, schemas and company information are synthetic or generic.","所有 sample data、hostname、credential、schema 與公司資訊皆為 synthetic 或 generic。"],["Back to Portfolio","返回作品集"]]);const w=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT),a=[];while(w.nextNode())a.push(w.currentNode);a.forEach(n=>{const p=n.parentElement;if(!p||p.closest("script,style,pre,code"))return;const r=n.nodeValue,t=r.trim();if(m.has(t))n.nodeValue=r.replace(t,m.get(t));});}
+  function topbar(){document.getElementById("pgTopbar")?.remove();const h=document.createElement("header");h.id="pgTopbar";const links=cfg.nav.filter(([,id])=>document.getElementById(id)).map(([l,id])=>`<a href="#${id}">${l}</a>`).join("");h.innerHTML=`<div class="pg-nav-inner"><a class="pg-brand" href="https://kewinall.github.io/kewinall/"><i class="pg-dot"></i><span class="pg-title">${cfg.title}<small>作品集 ${cfg.index} · ${cfg.role}</small></span></a><nav class="pg-links">${links}</nav><div class="pg-actions"><button id="pgThemeBtn" type="button">主題</button><a class="pg-action pg-hide-mobile" href="${cfg.repo}">GitHub</a><a class="pg-action primary" href="https://kewinall.github.io/kewinall/">作品集</a></div></div>`;document.body.prepend(h);h.querySelector("#pgThemeBtn").addEventListener("click",toggle);}
+  function normalize(){const s=document.querySelector(".shell");if(s)s.style.display="block";const l=document.querySelector(".layout");if(l)l.style.display="block";}
+  function hero(){return document.querySelector("section.hero")||document.querySelector("section#overview")||document.querySelector("section#top")||document.querySelector("section#cover");}
+  function summary(){document.querySelector(".pg-summary")?.remove();const s=document.createElement("div");s.className="pg-summary";s.innerHTML=`<div class="pg-summary-item"><span>作品集編號</span><strong>${cfg.index}</strong></div><div class="pg-summary-item"><span>主要定位</span><strong>${cfg.role}</strong></div><div class="pg-summary-item"><span>版本</span><strong>${cfg.version}</strong></div><div class="pg-summary-item"><span>工程重點</span><strong>${cfg.focus}</strong></div>`;const h=hero();if(h)h.insertAdjacentElement("afterend",s);else(document.querySelector("main")||document.body).prepend(s);}
+  function reorder(){const all=[...document.querySelectorAll("section")],h=hero(),ss=all.filter(s=>s!==h);if(!ss.length)return;const host=ss[0].closest("main")||document.querySelector("main")||ss[0].parentElement;let stack=document.getElementById("pgSectionStack");if(!stack){stack=document.createElement("div");stack.id="pgSectionStack";host.insertBefore(stack,ss[0]);}const used=new Set();cfg.order.forEach(id=>{const e=document.getElementById(id);if(e&&e.tagName.toLowerCase()==="section"){stack.appendChild(e);used.add(e);}});ss.filter(s=>!used.has(s)).forEach(s=>stack.appendChild(s));}
+  function decorate(){[...document.querySelectorAll("#pgSectionStack > section")].forEach((s,i)=>s.dataset.pgIndex=String(i+1).padStart(2,"0"));}
+  function footer(){document.getElementById("pgFooter")?.remove();const f=document.createElement("footer");f.id="pgFooter";f.innerHTML=`<div><strong>${cfg.title}</strong><br>${cfg.role} · ${cfg.version}</div><div>Production-oriented · 可治理 · 可觀測 · 可稽核</div><div><a href="https://kewinall.github.io/kewinall/">返回作品集</a> · <a href="${cfg.repo}">GitHub Repository</a></div>`;document.body.appendChild(f);}
+  if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);else init();
 })();
